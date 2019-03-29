@@ -35,10 +35,10 @@ hard_constr_tol = 1e-12
 
 
 #case path case2  scenario_1
-raw = './examples/scenario_1/case.raw'
-rop = './examples/scenario_1/case.rop'
-con = './examples/scenario_1/case.con'
-inl = './examples/scenario_1/case.inl'
+raw = 'case.raw'
+rop = 'case.rop'
+con = 'case.con'
+inl = 'case.inl'
 
 
 
@@ -945,7 +945,7 @@ with tf.Session() as session:
             
             for i in ctg_map.keys():
                 
-                file_w = open('./examples/scenario_1/sol2.txt','w')
+                file_w = open('sol2.txt','w')
                 file_w.write('--contingency\n')
                 file_w.write('label\n')
                 file_w.write(i+'\n')
@@ -969,11 +969,11 @@ with tf.Session() as session:
                 file_w.close()
             
             
-            file_r = open('./examples/scenario_1/sol2.txt','r')
+            file_r = open('sol2.txt','r')
             content = file_r.read()
             content = content.replace('(','').replace(')','')#todo
             file_r.close()
-            file_w = open('./examples/scenario_1/sol2.txt','w')
+            file_w = open('sol2.txt','w')
             file_w.write(content)
             file_w.close()
             
