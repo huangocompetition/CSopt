@@ -12,6 +12,9 @@ import numpy as np
 from scipy import sparse as sp
 import math
 import tensorflow as tf
+import time
+
+start_time = time.time()
 
 tfco = tf.contrib.constrained_optimization
 
@@ -32,10 +35,10 @@ hard_constr_tol = 1e-12
 
 
 #case path case2  scenario_1
-raw = 'case.raw'
-rop = 'case.rop'
-con = 'case.con'
-inl = 'case.inl'
+raw = './examples/scenario_1/case.raw'
+rop = './examples/scenario_1/case.rop'
+con = './examples/scenario_1/case.con'
+inl = './examples/scenario_1/case.inl'
 
 
 
@@ -806,25 +809,11 @@ class MyProblem(tfco.ConstrainedMinimizationProblem):
     
     #function 1
     penalty = base_case_penalty_weight * base_penalty + (1-base_case_penalty_weight)/max(1.0, float(num_ctg)) * ctg_penalty 
-    
-    
     #todo need add other penalty
-    constraint_1 = tf.reduce_sum(tf.maximum(0.,self.bus_volt_mag - bus_volt_mag_max))    
-    constraint_2 = tf.reduce_sum(tf.maximum(0.,-self.bus_volt_mag + bus_volt_mag_min))
-    constraint_3 = tf.reduce_sum(tf.maximum(0.,self.bus_swsh_adm_imag - bus_swsh_adm_imag_max))
-    constraint_4 = tf.reduce_sum(tf.maximum(0.,-self.bus_swsh_adm_imag + bus_swsh_adm_imag_min))
-    constraint_5 = tf.reduce_sum(tf.maximum(0.,self.gen_pow_real - gen_pow_real_max))
-    constraint_6 = tf.reduce_sum(tf.maximum(0.,-self.gen_pow_real + gen_pow_real_min))
-    constraint_7 = tf.reduce_sum(tf.maximum(0.,self.gen_pow_imag - gen_pow_imag_max))
-    constraint_8 = tf.reduce_sum(tf.maximum(0.,-self.gen_pow_imag + gen_pow_imag_min))
-    con_all = constraint_1 + constraint_2 +constraint_3 + constraint_4 + constraint_5 + constraint_6 + constraint_7 + constraint_8
-    
     self.test = penalty 
-    
-    
     self.obj = cost + penalty
     
-    return self.obj + con_all*100000
+    return self.obj
 
 
 
@@ -877,8 +866,8 @@ class MyProblem(tfco.ConstrainedMinimizationProblem):
 
 #main start
 problem = MyProblem()
-itertime = 20000
-print('now')
+#itertime = 200000
+#print('now')
 with tf.Session() as session:
     '''
     https://git.codingcafe.org/Mirrors/tensorflow/tensorflow/commit/ff15c81e2b92ef8fb47bb15790cffd18377a4ef2?expanded=1
@@ -892,9 +881,11 @@ with tf.Session() as session:
     train_op = optimizer.minimize(problem)
     session.run(tf.global_variables_initializer())
     
-    for i in range(itertime):
+    while True:
+    #for i in range(itertime):
         session.run(train_op)
-        if i % 1000 == 0:
+        '''
+        if i % 5000 == 0:
             print(i)
             print('volt_mag ')
             print(session.run(tf.transpose(problem.bus_volt_mag)))
@@ -910,55 +901,20 @@ with tf.Session() as session:
             print(session.run(problem.test))
             print('obj')
             print(session.run(problem.obj))
-    
-    if i == itertime-1:
+        '''
+    #if i == itertime-1:
         #write sol1
-        volt_mag = list(session.run(tf.transpose(problem.bus_volt_mag))[0])
-        volt_ang = list(session.run(tf.transpose(problem.bus_volt_ang))[0])
-        gen_real = list(session.run(tf.transpose(problem.gen_pow_real))[0])
-        gen_img = list(session.run(tf.transpose(problem.gen_pow_imag))[0])
-        swsh = list(session.run(tf.transpose(problem.bus_swsh_adm_imag))[0])
-        
-        file_w = open('sol1.txt','w')
-        file_w.write('--bus section\n')
-        file_w.write('i, v, theta, b\n')
-        part1 = list(zip(volt_mag,volt_ang,swsh))
-        for i in range(len(part1)):
-            file_w.write(str(i+1)+',')
-            file_w.write(str(part1[i])+'\n')
-        
-        file_w.write('--generator section\n')
-        file_w.write('i, uid, p, q\n')
-        part2 = list(zip(gen_real,gen_img))
-        for i in range(len(part2)):
-            file_w.write('{},'.format(gen_key[i]))
-            file_w.write(str(part2[i])+'\n')
-        file_w.close()
-        
-        file_r = open('sol1.txt','r')
-        content = file_r.read()
-        content = content.replace('(','').replace(')','')#todo
-        file_r.close()
-        file_w = open('sol1.txt','w')
-        file_w.write(content)
-        file_w.close()
-        
-        #write sol2
-        volt_mag = list(session.run(tf.transpose(problem.bus_volt_mag))[0])
-        volt_ang = list(session.run(tf.transpose(problem.bus_volt_ang))[0])
-        gen_real = list(session.run(tf.transpose(problem.gen_pow_real))[0])
-        gen_img = list(session.run(tf.transpose(problem.gen_pow_imag))[0])
-        swsh = list(session.run(tf.transpose(problem.bus_swsh_adm_imag))[0])
-        
-        for i in ctg_map.keys():
+        if time.time() - start_time > 290:#5min
+            volt_mag = list(session.run(tf.transpose(problem.bus_volt_mag))[0])
+            volt_ang = list(session.run(tf.transpose(problem.bus_volt_ang))[0])
+            gen_real = list(session.run(tf.transpose(problem.gen_pow_real))[0])
+            gen_img = list(session.run(tf.transpose(problem.gen_pow_imag))[0])
+            swsh = list(session.run(tf.transpose(problem.bus_swsh_adm_imag))[0])
             
-            file_w = open('sol2.txt','w')
-            file_w.write('--contingency\n')
-            file_w.write('label\n')
-            file_w.write(i+'\n')
+            file_w = open('./examples/scenario_1/sol1.txt','w')
             file_w.write('--bus section\n')
             file_w.write('i, v, theta, b\n')
-            part1 = list(zip(volt_mag, volt_ang, swsh))
+            part1 = list(zip(volt_mag,volt_ang,swsh))
             for i in range(len(part1)):
                 file_w.write(str(i+1)+',')
                 file_w.write(str(part1[i])+'\n')
@@ -969,23 +925,117 @@ with tf.Session() as session:
             for i in range(len(part2)):
                 file_w.write('{},'.format(gen_key[i]))
                 file_w.write(str(part2[i])+'\n')
-            
-            file_w.write('--delta section\n')
-            file_w.write('delta\n')#todo
-            file_w.write('0.0')
             file_w.close()
-        
-        
-        file_r = open('sol2.txt','r')
-        content = file_r.read()
-        content = content.replace('(','').replace(')','')#todo
-        file_r.close()
-        file_w = open('sol2.txt','w')
-        file_w.write(content)
-        file_w.close()
+            
+            file_r = open('./examples/scenario_1/sol1.txt','r')
+            content = file_r.read()
+            content = content.replace('(','').replace(')','')#todo
+            file_r.close()
+            file_w = open('./examples/scenario_1/sol1.txt','w')
+            file_w.write(content)
+            file_w.close()
+            
+            break
+            
 
 
+
         
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+'''
+
+#besides the function other evaluation are tested
+
+
+#eval_bus_volt_viol()
+bus_volt_mag_min_viol = np.maximum(0.0, bus_volt_mag_min - bus_volt_mag)
+bus_volt_mag_max_viol = np.maximum(0.0, bus_volt_mag - bus_volt_mag_max)
+
+
+
+#eval_load_pow()
+#eval_fxsh_pow()
+#eval_gen_pow_viol()
+gen_pow_real_min_viol = np.maximum(0.0, gen_pow_real_min - gen_pow_real)
+gen_pow_real_max_viol = np.maximum(0.0, gen_pow_real - gen_pow_real_max)
+gen_pow_imag_min_viol = np.maximum(0.0, gen_pow_imag_min - gen_pow_imag)
+gen_pow_imag_max_viol = np.maximum(0.0, gen_pow_imag - gen_pow_imag_max)
+
+
+
+#eval_line_pow()
+#eval_line_curr_viol()
+#eval_xfmr_pow()
+#eval_xfmr_pow_viol()
+#eval_bus_swsh_adm_imag_viol()
+bus_swsh_adm_imag_min_viol = np.maximum(0.0, bus_swsh_adm_imag_min - bus_swsh_adm_imag)
+bus_swsh_adm_imag_max_viol = np.maximum(0.0, bus_swsh_adm_imag - bus_swsh_adm_imag_max)
+
+
+#eval_bus_swsh_pow()
+#eval_bus_pow_balance()
+
+
+#compute_detail()
+max_bus_volt_mag_max_viol = extra_max(bus_i, bus_volt_mag_max_viol)
+max_bus_volt_mag_min_viol = extra_max(bus_i, bus_volt_mag_min_viol)
+max_bus_swsh_adm_imag_max_viol = extra_max(bus_i, bus_swsh_adm_imag_max_viol)
+max_bus_swsh_adm_imag_min_viol = extra_max(bus_i, bus_swsh_adm_imag_min_viol)
+max_bus_pow_balance_real_viol = extra_max(bus_i, bus_pow_balance_real_viol)
+max_bus_pow_balance_imag_viol = extra_max(bus_i, bus_pow_balance_imag_viol)
+max_gen_pow_real_max_viol = extra_max(gen_key, gen_pow_real_max_viol)
+max_gen_pow_real_min_viol = extra_max(gen_key, gen_pow_real_min_viol)
+max_gen_pow_imag_max_viol = extra_max(gen_key, gen_pow_imag_max_viol)
+max_gen_pow_imag_min_viol = extra_max(gen_key, gen_pow_imag_min_viol)
+max_line_curr_orig_mag_max_viol = extra_max(line_key, line_curr_orig_mag_max_viol)
+max_line_curr_dest_mag_max_viol = extra_max(line_key, line_curr_dest_mag_max_viol)
+max_xfmr_pow_orig_mag_max_viol = extra_max(xfmr_key, xfmr_pow_orig_mag_max_viol)
+max_xfmr_pow_dest_mag_max_viol = extra_max(xfmr_key, xfmr_pow_dest_mag_max_viol)
+
+
+
+#eval_infeas()
+max_obj_viol = max(
+    max_bus_pow_balance_real_viol[1],
+    max_bus_pow_balance_imag_viol[1],
+    max_line_curr_orig_mag_max_viol[1],
+    max_line_curr_dest_mag_max_viol[1],
+    max_xfmr_pow_orig_mag_max_viol[1],
+    max_xfmr_pow_dest_mag_max_viol[1])
+max_nonobj_viol = max(
+    max_bus_volt_mag_max_viol[1],
+    max_bus_volt_mag_min_viol[1],
+    max_bus_swsh_adm_imag_max_viol[1],
+    max_bus_swsh_adm_imag_min_viol[1],
+    max_gen_pow_real_max_viol[1],
+    max_gen_pow_real_min_viol[1],
+    max_gen_pow_imag_max_viol[1],
+    max_gen_pow_imag_min_viol[1])
+
+
+
+
+#eval_penalty()
+
+
+#eval_obj()
+'''
+
 
 
 
