@@ -35,10 +35,10 @@ hard_constr_tol = 1e-12
 
 
 #case path case2  scenario_1
-raw = './examples/scenario_1/case.raw'
-rop = './examples/scenario_1/case.rop'
-con = './examples/scenario_1/case.con'
-inl = './examples/scenario_1/case.inl'
+raw = 'case.raw'
+rop = 'case.rop'
+con = 'case.con'
+inl = 'case.inl'
 
 
 
