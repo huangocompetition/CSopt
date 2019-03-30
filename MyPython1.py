@@ -48,7 +48,7 @@ parser.add_argument('nm')
 
 args = parser.parse_args()
 
-raw, rop,cpn, inl = args.raw, args.rop, args.con, args.inl
+raw, rop,con, inl = args.raw, args.rop, args.con, args.inl
 
 
 
