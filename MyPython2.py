@@ -945,7 +945,7 @@ with tf.Session() as session:
             
             for i in ctg_map.keys():
                 
-                file_w = open('sol2.txt','w')
+                file_w = open('solution2.txt','w')
                 file_w.write('--contingency\n')
                 file_w.write('label\n')
                 file_w.write(i+'\n')
@@ -969,11 +969,11 @@ with tf.Session() as session:
                 file_w.close()
             
             
-            file_r = open('sol2.txt','r')
+            file_r = open('solution2.txt','r')
             content = file_r.read()
             content = content.replace('(','').replace(')','')#todo
             file_r.close()
-            file_w = open('sol2.txt','w')
+            file_w = open('solution2.txt','w')
             file_w.write(content)
             file_w.close()
             
