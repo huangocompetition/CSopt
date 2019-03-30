@@ -13,6 +13,7 @@ from scipy import sparse as sp
 import math
 import tensorflow as tf
 import time
+import argparse
 
 start_time = time.time()
 
@@ -35,11 +36,19 @@ hard_constr_tol = 1e-12
 
 
 #case path case2  scenario_1
-raw = 'case.raw'
-rop = 'case.rop'
-con = 'case.con'
-inl = 'case.inl'
+parser = argparse.ArgumentParser()
 
+parser.add_argument('raw')
+parser.add_argument('rop')
+parser.add_argument('con')
+parser.add_argument('inl')
+parser.add_argument('tim')
+parser.add_argument('sco')
+parser.add_argument('nm')
+
+args = parser.parse_args()
+
+raw, rop,cpn, inl = args.raw, args.rop, args.con, args.inl
 
 
 
