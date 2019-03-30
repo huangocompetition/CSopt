@@ -911,7 +911,7 @@ with tf.Session() as session:
             gen_img = list(session.run(tf.transpose(problem.gen_pow_imag))[0])
             swsh = list(session.run(tf.transpose(problem.bus_swsh_adm_imag))[0])
             
-            file_w = open('sol1.txt','w')
+            file_w = open('solution1.txt','w')
             file_w.write('--bus section\n')
             file_w.write('i, v, theta, b\n')
             part1 = list(zip(volt_mag,volt_ang,swsh))
@@ -927,11 +927,11 @@ with tf.Session() as session:
                 file_w.write(str(part2[i])+'\n')
             file_w.close()
             
-            file_r = open('sol1.txt','r')
+            file_r = open('solution1.txt','r')
             content = file_r.read()
             content = content.replace('(','').replace(')','')#todo
             file_r.close()
-            file_w = open('sol1.txt','w')
+            file_w = open('solution1.txt','w')
             file_w.write(content)
             file_w.close()
             
