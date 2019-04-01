@@ -2349,7 +2349,9 @@ class MyProblem(tfco.ConstrainedMinimizationProblem):
 problem = MyProblem()
 itertime = 20000
 print('now')
-with tf.Session() as session:
+config = tf.ConfigProto()
+config.gpu_options.allow_growth = True
+with tf.Session(config = config) as session:
     '''
     https://git.codingcafe.org/Mirrors/tensorflow/tensorflow/commit/ff15c81e2b92ef8fb47bb15790cffd18377a4ef2?expanded=1
     AdditiveExternalRegretOptimizer
