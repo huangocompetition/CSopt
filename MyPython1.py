@@ -44,6 +44,9 @@ parser.add_argument('raw')
 parser.add_argument('rop')
 parser.add_argument('con')
 parser.add_argument('inl')
+parser.add_argument('tim')
+parser.add_argument('sco')
+parser.add_argument('net')
 
 args = parser.parse_args()
 
