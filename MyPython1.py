@@ -7,8 +7,6 @@ Step 1: read para from data
 Step 2: build function
 Step 3: solve by tensorflow
 """
-import traceback
-
 import numpy as np
 from scipy import sparse as sp
 import math
@@ -89,7 +87,6 @@ def parse_token(token, val_type, default=None):
             print('required field missing data, token: %s, val_type: %s' % (token, val_type))
             raise Exception('empty field not allowed')
         except Exception as e:
-            traceback.print_exc()
             raise e
         #raise Exception('empty field not allowed')
     return val
@@ -111,7 +108,6 @@ def pad_row(row, new_row_len):
         else:
             row = remove_end_of_line_comment_from_row(row, '/')
     except Exception as e:
-        traceback.print_exc()
         raise e
     return row
     '''
@@ -131,7 +127,6 @@ def check_row_missing_fields(row, row_len_expected):
             print(row)
             raise Exception('missing field not allowed')
     except Exception as e:
-        traceback.print_exc()
         raise e
 
 def remove_end_of_line_comment_from_row(row, end_of_line_str):
@@ -1172,7 +1167,6 @@ class Con:
                     print(l)
                     raise Exception('no quotes allowed in CON')
         except Exception as e:
-            traceback.print_exc()
             raise e
         delimiter_str = " "
         #quote_str = "'"
@@ -1274,7 +1268,6 @@ class Con:
                     print(row)
                     raise Exception('format error in CON file')
                 except Exception as e:
-                    traceback.print_exc()
                     raise e
 
 class CaseIdentification:
@@ -1726,7 +1719,6 @@ class Transformer:
                     if len(row) > new_row_len:
                         raise Exception('extra field not allowed')
         except Exception as e:
-            traceback.print_exc()
             raise e
         self.i = parse_token(row[0], int, default=None)
         self.j = parse_token(row[1], int, default=None)
