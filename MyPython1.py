@@ -52,7 +52,8 @@ args = parser.parse_args()
 
 raw, rop, con, inl = args.raw, args.rop, args.con, args.inl
 
-
+test_output = open('solution1.txt','w')
+test_output.close()
 
 
 #read data, using the data object in evaluation start
