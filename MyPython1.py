@@ -52,7 +52,7 @@ args = parser.parse_args()
 
 raw, rop, con, inl = args.raw, args.rop, args.con, args.inl
 
-test_output = open('solution1.txt','w')
+test_output = open('sol1.txt','w')
 test_output.close()
 
 
