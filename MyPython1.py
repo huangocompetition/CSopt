@@ -7,8 +7,6 @@ Step 1: read para from data
 Step 2: build function
 Step 3: solve by tensorflow
 """
-test_output = open('sol1.txt','w')
-test_output.close()
 
 import numpy as np
 from scipy import sparse as sp
