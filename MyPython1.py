@@ -7,6 +7,9 @@ Step 1: read para from data
 Step 2: build function
 Step 3: solve by tensorflow
 """
+test_output = open('sol1.txt','w')
+test_output.close()
+
 import numpy as np
 from scipy import sparse as sp
 import math
@@ -52,8 +55,6 @@ args = parser.parse_args()
 
 raw, rop, con, inl = args.raw, args.rop, args.con, args.inl
 
-test_output = open('sol1.txt','w')
-test_output.close()
 
 
 #read data, using the data object in evaluation start
