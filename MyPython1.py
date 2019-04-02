@@ -2,7 +2,7 @@
 """
 Created on Fri Mar  8 15:21:22 2019
 
-@author: 赵焕
+@author: Zhao Huan
 Step 1: read para from data
 Step 2: build function
 Step 3: solve by tensorflow
