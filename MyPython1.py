@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """
 Created on Fri Mar  8 15:21:22 2019
-
 @author: Zhao Huan
 Step 1: read para from data
 Step 2: build function
@@ -20,7 +19,7 @@ start_time = time.time()
 
 tfco = tf.contrib.constrained_optimization
 
-# soft constraint penalty parameters
+#soft constraint penalty parameters
 penalty_block_pow_real_max = [2.0, 50.0] # MW. when converted to p.u., this is overline_sigma_p in the formulation
 penalty_block_pow_real_coeff = [1000.0, 5000.0, 1000000.0] # USD/MW-h. when converted USD/p.u.-h this is lambda_p in the formulation
 penalty_block_pow_imag_max = [2.0, 50.0] # MVar. when converted to p.u., this is overline_sigma_q in the formulation
@@ -28,7 +27,7 @@ penalty_block_pow_imag_coeff = [1000.0, 5000.0, 1000000.0] # USD/MVar-h. when co
 penalty_block_pow_abs_max = [2.0, 50.0] # MVA. when converted to p.u., this is overline_sigma_s in the formulation
 penalty_block_pow_abs_coeff = [1000.0, 5000.0, 1000000.0] # USD/MWA-h. when converted USD/p.u.-h this is lambda_s in the formulation
 
-# weight on base case in objective
+#weight on base case in objective
 base_case_penalty_weight = 0.5 # dimensionless. corresponds to delta in the formulation
 
 # tolerance on hard constraints
@@ -88,7 +87,6 @@ def parse_token(token, val_type, default=None):
     return val
 
 def pad_row(row, new_row_len):
-
     try:
         if len(row) != new_row_len:
             if len(row) < new_row_len:
@@ -106,17 +104,8 @@ def pad_row(row, new_row_len):
     except Exception as e:
         raise e
     return row
-    '''
-    row_len = len(row)
-    row_len_diff = new_row_len - row_len
-    row_new = row
-    if row_len_diff > 0:
-        row_new = row + row_len_diff * ['']
-    return row_new
-    '''
 
 def check_row_missing_fields(row, row_len_expected):
-
     try:
         if len(row) < row_len_expected:
             print('missing field, row:')
@@ -126,7 +115,6 @@ def check_row_missing_fields(row, row_len_expected):
         raise e
 
 def remove_end_of_line_comment_from_row(row, end_of_line_str):
-
     index = [r.find(end_of_line_str) for r in row]
     len_row = len(row)
     entries_with_end_of_line_strs = [i for i in range(len_row) if index[i] > -1]
@@ -140,8 +128,7 @@ def remove_end_of_line_comment_from_row(row, end_of_line_str):
         row_new = [r for r in row]
     return row_new
 
-def remove_end_of_line_comment(token, end_of_line_str):
-    
+def remove_end_of_line_comment(token, end_of_line_str):  
     token_new = token
     index = token_new.find(end_of_line_str)
     if index > -1:
@@ -150,7 +137,6 @@ def remove_end_of_line_comment(token, end_of_line_str):
 
 class Data:
     '''In physical units, i.e. data convention, i.e. input and output data files'''
-
     def __init__(self):
 
         self.raw = Raw()
@@ -160,9 +146,7 @@ class Data:
         
 class Raw:
     '''In physical units, i.e. data convention, i.e. input and output data files'''
-
     def __init__(self):
-
         self.case_identification = CaseIdentification()
         self.buses = {}
         self.loads = {}
@@ -173,17 +157,14 @@ class Raw:
         self.areas = {}
         self.switched_shunts = {}
 
-    def set_areas_from_buses(self):
-        
+    def set_areas_from_buses(self):        
         area_i_set = set([b.area for b in self.buses.values()])
         def area_set_i(area, i):
             area.i = i
             return area
         self.areas = {i:area_set_i(Area(), i) for i in area_i_set}
         
-
     def switched_shunts_combine_blocks_steps(self):
-
         for r in self.switched_shunts.values():
             b_min = 0.0
             b_max = 0.0
@@ -229,7 +210,6 @@ class Raw:
                 r.b1 = b_min
         
     def set_operating_point_to_offline_solution(self):
-
         for r in self.buses.values():
             r.vm = 1.0
             r.va = 0.0
@@ -240,7 +220,6 @@ class Raw:
             r.binit = 0.0
         
     def read(self, file_name):
-
         with open(file_name, 'r') as in_file:
             lines = in_file.readlines()
         delimiter_str = ","
@@ -256,7 +235,6 @@ class Raw:
         self.set_areas_from_buses()
         
     def row_is_file_end(self, row):
-
         is_file_end = False
         if len(row) == 0:
             is_file_end = True
@@ -265,14 +243,12 @@ class Raw:
         return is_file_end
     
     def row_is_section_end(self, row):
-
         is_section_end = False
         if row[0][:1] == '0':
             is_section_end = True
         return is_section_end
         
     def read_from_rows(self, rows):
-
         row_num = 0
         cid_rows = rows[row_num:(row_num + 3)]
         self.case_identification.read_from_rows(rows)
@@ -435,9 +411,7 @@ class Raw:
 
 class Rop:
     '''In physical units, i.e. data convention, i.e. input and output data files'''
-
     def __init__(self):
-
         #self.generator_dispatch_records = GeneratorDispatchRecord() # needs to be a dictionary
         self.generator_dispatch_records = {}
         self.active_power_dispatch_records = {}
@@ -445,7 +419,6 @@ class Rop:
         
     def trancostfuncfrom_phase_0(self,rawdata):
         ds=self.active_power_dispatch_records.get((4, '1'))
-
         for r in rawdata.generators.values():
             ds=self.active_power_dispatch_records.get((r.i,r.id))
             #update piecewise linear info
@@ -458,8 +431,7 @@ class Rop:
             
         
 
-    def read_from_phase_0(self, file_name):
-        
+    def read_from_phase_0(self, file_name):   
         '''takes the generator.csv file as input'''
         with open(file_name, 'r') as in_file:
             lines = in_file.readlines()
@@ -623,9 +595,7 @@ class Rop:
 
 class Inl:
     '''In physical units, i.e. data convention, i.e. input and output data files'''
-
     def __init__(self):
-
         self.generator_inl_records = {}
 
     # TODO
@@ -634,7 +604,6 @@ class Inl:
 
 
     def read(self, file_name):
-
         with open(file_name, 'r') as in_file:
             lines = in_file.readlines()
         delimiter_str = ","
@@ -649,7 +618,6 @@ class Inl:
         self.read_from_rows(rows)
         
     def row_is_file_end(self, row):
-
         is_file_end = False
         if len(row) == 0:
             is_file_end = True
@@ -658,14 +626,12 @@ class Inl:
         return is_file_end
     
     def row_is_section_end(self, row):
-
         is_section_end = False
         if row[0][:1] == '0':
             is_section_end = True
         return is_section_end
         
     def read_from_rows(self, rows):
-
         row_num = -1
         while True:
             row_num += 1
@@ -684,7 +650,6 @@ class Con:
     '''In physical units, i.e. data convention, i.e. input and output data files'''
 
     def __init__(self):
-
         self.contingencies = {}
 
     def read_from_phase_0(self, file_name):
@@ -721,7 +686,6 @@ class Con:
 
 
     def read(self, file_name):
-
         with open(file_name, 'r') as in_file:
             lines = in_file.readlines()
         try:
@@ -745,7 +709,6 @@ class Con:
         self.read_from_rows(rows)
         
     def row_is_file_end(self, row):
-
         is_file_end = False
         if len(row) == 0:
             is_file_end = True
@@ -753,30 +716,16 @@ class Con:
             is_file_end = True
         return is_file_end
     
-    #def row_is_section_end(self, row):
-    #
-    #    is_section_end = False
-    #    if row[0][:1] == '0':
-    #        is_section_end = True
-    #    return is_section_end
-
     def is_contingency_start(self, row):
-
         return (row[0].upper() == 'CONTINGENCY')
 
     def is_end(self, row):
-
         return (row[0].upper() == 'END')
 
     def is_branch_out_event(self, row):
-
-        #return (
-        #    row[0].upper() in {'DISCONNECT', 'OPEN', 'TRIP'} and
-        #    row[1].upper() in {'BRANCH', 'LINE'})
         return (row[0] == 'OPEN' and row[1] == 'BRANCH')
 
     def is_three_winding(self, row):
-
         #print(row)
         if len(row) < 9:
             return False
@@ -786,25 +735,16 @@ class Con:
             return False
 
     def is_generator_out_event(self, row):
-
-        #return(
-        #    row[0].upper() == 'REMOVE' and
-        #    row[1].upper() in {'UNIT', 'MACHINE'})
         return(row[0] == 'REMOVE' and row[1] == 'UNIT')
         
     def read_from_rows(self, rows):
-
         row_num = -1
         in_contingency = False
         while True:
             row_num += 1
-            #if row_num >= len(rows): # in case the data provider failed to put an end file line
-            #    return
             row = rows[row_num]
             if self.row_is_file_end(row):
                 return
-            #if self.row_is_section_end(row):
-            #    break
             elif self.is_contingency_start(row):
                 in_contingency = True
                 contingency = Contingency()
@@ -837,7 +777,6 @@ class Con:
 class CaseIdentification:
 
     def __init__(self):
-
         self.ic = 0
         self.sbase = 100.0
         self.rev = 33
@@ -848,7 +787,6 @@ class CaseIdentification:
         self.record_3 = 'RAW file. Other required input data files include ROP, INL, CON'
 
     def read_record_1_from_row(self, row):
-
         row = pad_row(row, 6)
         #row[5] = remove_end_of_line_comment(row[5], '/')
         self.sbase = parse_token(row[1], float, default=None)
@@ -860,15 +798,11 @@ class CaseIdentification:
             self.basfrq = parse_token(row[5], float, 60.0) # need to remove end of line comment
 
     def read_from_rows(self, rows):
-
         self.read_record_1_from_row(rows[0])
-        #self.record_2 = '' # not preserving these at this point
-        #self.record_3 = '' # do that later
-
+        
 class Bus:
 
     def __init__(self):
-
         self.i = None # no default allowed - we want this to throw an error
         self.name = 12*' '
         self.baskv = 0.0
@@ -884,7 +818,6 @@ class Bus:
         self.evlo = 0.9
 
     def read_from_row(self, row):
-
         row = pad_row(row, 13)
         self.i = parse_token(row[0], int, default=None)
         self.area = parse_token(row[4], int, default=None)
@@ -904,7 +837,6 @@ class Bus:
 class Load:
 
     def __init__(self):
-
         self.i = None # no default allowed - should be an error
         self.id = '1'
         self.status = 1
@@ -921,7 +853,6 @@ class Load:
         self.intrpt = 0
 
     def read_from_row(self, row):
-
         row = pad_row(row, 14)
         self.i = parse_token(row[0], int, default=None)
         self.id = parse_token(row[1], str, default=None)
@@ -942,7 +873,6 @@ class Load:
 class FixedShunt:
 
     def __init__(self):
-
         self.i = None # no default allowed
         self.id = '1'
         self.status = 1
@@ -950,7 +880,6 @@ class FixedShunt:
         self.bl = 0.0
 
     def read_from_row(self, row):
-
         row = pad_row(row, 5)
         self.i = parse_token(row[0], int, default=None)
         self.id = parse_token(row[1], str, default=None)
@@ -1028,7 +957,6 @@ class Generator:
 class NontransformerBranch:
 
     def __init__(self):
-
         self.i = None # no default
         self.j = None # no default
         self.ckt = '1'
@@ -1055,7 +983,6 @@ class NontransformerBranch:
         self.f4 = 1.0
 
     def read_from_row(self, row):
-
         row = pad_row(row, 24)
         self.i = parse_token(row[0], int, default=None)
         self.j = parse_token(row[1], int, default=None)
@@ -1084,9 +1011,8 @@ class NontransformerBranch:
             self.f4 = parse_token(row[23], float, 1.0)
 
 class Transformer:
-
+    
     def __init__(self):
-
         self.i = None # no default
         self.j = None # no default
         self.k = 0
@@ -1144,7 +1070,6 @@ class Transformer:
         return num_windings
     
     def get_num_rows_from_row(self, row):
-
         num_rows = 0
         k = parse_token(row[2], int, 0)
         if k == 0:
@@ -1154,7 +1079,6 @@ class Transformer:
         return num_rows
 
     def read_from_rows(self, rows):
-
         full_rows = self.pad_rows(rows)
         row = self.flatten_rows(full_rows)
         try:
@@ -1165,27 +1089,13 @@ class Transformer:
             raise e
         
     def pad_rows(self, rows):
-
         return rows
-        '''
-        rows_new = rows
-        if len(rows_new) == 4:
-            rows_new.append([])
-        rows_len = [len(r) for r in rows_new]
-        rows_len_new = [21, 11, 17, 17, 17]
-        rows_len_increase = [rows_len_new[i] - rows_len[i] for i in range(5)]
-        # check no negatives in increase
-        rows_new = [rows_new[i] + rows_len_increase[i]*[''] for i in range(5)]
-        return rows_new
-        '''
 
     def flatten_rows(self, rows):
-
         row = [t for r in rows for t in r]
         return row
     
-    def read_from_row(self, row):       
-        # just 2-winding, 4-row
+    def read_from_row(self, row):
         try:
             if len(row) != 43:
                 if len(row) < 43:
@@ -1244,7 +1154,6 @@ class Transformer:
 class Area:
 
     def __init__(self):
-
         self.i = None # no default
         self.isw = 0
         self.pdes = 0.0
@@ -1252,7 +1161,6 @@ class Area:
         self.arname = 12*' '
 
     def read_from_row(self, row):
-
         row = pad_row(row, 5)
         self.i = parse_token(row[0], int, default=None)
         if read_unused_fields:
@@ -1264,12 +1172,10 @@ class Area:
 class Zone:
 
     def __init__(self):
-
         self.i = None # no default
         self.zoname = 12*' '
         
     def read_from_row(self, row):
-
         row = pad_row(row, 2)
         self.i = parse_token(row[0], int, default=None)
         if read_unused_fields:
@@ -1278,7 +1184,6 @@ class Zone:
 class SwitchedShunt:
 
     def __init__(self):
-
         self.i = None # no default
         self.modsw = 1
         self.adjm = 0
@@ -1307,7 +1212,6 @@ class SwitchedShunt:
         self.b8 = 0.0
 
     def read_from_row(self, row):
-
         row = pad_row(row, 26)
         self.i = parse_token(row[0], int, default=None)
         self.stat = parse_token(row[3], int, default=None)
@@ -1340,14 +1244,12 @@ class SwitchedShunt:
 class GeneratorDispatchRecord:
 
     def __init__(self):
-
         self.bus = None
         self.genid = None
         #self.disp = None
         self.dsptbl = None
 
     def read_from_row(self, row):
-
         row = pad_row(row, 4)
         self.bus = parse_token(row[0], int, default=None)
         self.genid = parse_token(row[1], str, default=None).strip()
@@ -1361,7 +1263,6 @@ class GeneratorDispatchRecord:
 class ActivePowerDispatchRecord:
 
     def __init__(self):
-
         self.tbl = None
         #self.pmax = None
         #self.pmin = None
@@ -1371,7 +1272,6 @@ class ActivePowerDispatchRecord:
         self.ctbl = None
 
     def read_from_row(self, row):
-
         row = pad_row(row, 7)
         self.tbl = parse_token(row[0], int, default=None)
         #self.pmax = parse_token(row[1], float, 9999.0)
@@ -1384,7 +1284,6 @@ class ActivePowerDispatchRecord:
 class PiecewiseLinearCostFunction():
 
     def __init__(self):
-
         self.ltbl = None
         #self.label = None
         #self.costzero = None
@@ -1392,7 +1291,6 @@ class PiecewiseLinearCostFunction():
         self.points = []
 
     def read_from_row(self, row):
-
         self.ltbl = parse_token(row[0], int, default=None)
         #self.label = parse_token(row[1], str, '')
         self.npairs = parse_token(row[2], int, default=None)
@@ -1403,17 +1301,14 @@ class PiecewiseLinearCostFunction():
             self.points.append(point)
 
     def get_num_rows_from_row(self, row):
-
         num_rows = parse_token(row[2], int, 0) + 1
         return num_rows
 
     def flatten_rows(self, rows):
-
         row = [t for r in rows for t in r]
         return row
 
     def read_from_rows(self, rows):
-
         self.read_from_row(self.flatten_rows(rows))
     
 class  QuadraticCostFunctions(GeneratorDispatchRecord,PiecewiseLinearCostFunction):
@@ -1438,7 +1333,6 @@ class  QuadraticCostFunctions(GeneratorDispatchRecord,PiecewiseLinearCostFunctio
 class GeneratorInlRecord:
 
     def __init__(self):
-
         self.i = None
         self.id = None
         #self.h = None
@@ -1448,7 +1342,6 @@ class GeneratorInlRecord:
         #self.d = None
 
     def read_from_row(self, row):
-
         row = pad_row(row, 7)
         self.i = parse_token(row[0], int, '')
         self.id = parse_token(row[1], str, '1')
@@ -1461,7 +1354,6 @@ class GeneratorInlRecord:
 class Contingency:
 
     def __init__(self):
-
         self.label = ''
         self.branch_out_events = []
         self.generator_out_events = []
@@ -1469,12 +1361,10 @@ class Contingency:
 class Point:
 
     def __init__(self):
-
         self.x = None
         self.y = None
 
     def read_from_row(self, row):
-
         row = pad_row(row, 2)
         self.x = parse_token(row[0], float, default=None)
         self.y = parse_token(row[1], float, default=None)
@@ -1482,48 +1372,32 @@ class Point:
 class BranchOutEvent:
 
     def __init__(self):
-
         self.i = None
         self.j = None
         self.ckt = None
 
     def read_from_row(self, row):
-
         check_row_missing_fields(row, 10)
         self.i = parse_token(row[4], int, default=None)
         self.j = parse_token(row[7], int, default=None)
         self.ckt = parse_token(row[9], str, default=None)
 
     def read_from_csv(self, row):
-
         self.i = parse_token(row[2], int, '')
         self.j = parse_token(row[3], int, '')
         self.ckt = parse_token(row[4], str, '1')
 
-    '''
-    def read_three_winding_from_row(self, row):
-
-        row = pad_row(row, 13)
-        self.i = parse_token(row[4], int, '')
-        self.j = parse_token(row[7], int, '')
-        self.k = parse_token(row[10], int, '')
-        self.ckt = parse_token(row[12], str, '1')
-    '''
-
 class GeneratorOutEvent:
 
     def __init__(self):
-
         self.i = None
         self.id = None
 
     def read_from_csv(self, row):
-
         self.i = parse_token(row[2], int, '')
         self.id = parse_token(row[3], str, '')
 
     def read_from_row(self, row):
-
         self.i = parse_token(row[5], int, default=None)
         self.id = parse_token(row[2], str, default=None)
     
