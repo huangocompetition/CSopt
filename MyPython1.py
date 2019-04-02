@@ -101,7 +101,8 @@ load_i = [r.i for r in loads]
 load_id = [r.id for r in loads]
 load_bus = [bus_map[load_i[i]] for i in range(num_load)]
 load_map = {}
-load_map = {(load_i[i], load_id[i]):i for i in range(num_load)}
+for i in range(num_load):
+    load_map[(load_i[i], load_id[i])] = i
 load_status = np.array([r.status for r in loads])
 load_const_pow_real = np.array([r.pl / base_mva for r in loads]) * load_status
 load_const_pow_imag = np.array([r.ql / base_mva for r in loads]) * load_status
@@ -121,7 +122,9 @@ num_fxsh = len(fxshs)
 fxsh_i = [r.i for r in fxshs]
 fxsh_id = [r.id for r in fxshs]
 fxsh_bus = [bus_map[fxsh_i[i]] for i in range(num_fxsh)]
-fxsh_map = {(fxsh_i[i], fxsh_id[i]):i for i in range(num_fxsh)}
+fxsh_map = {}
+for i in range(num_fxsh):
+    fxsh_map[(fxsh_i[i], fxsh_id[i])] = i 
 fxsh_status = np.array([r.status for r in fxshs])
 fxsh_adm_real = np.array([r.gl / base_mva for r in fxshs]) * fxsh_status
 fxsh_adm_imag = np.array([r.bl / base_mva for r in fxshs]) * fxsh_status
@@ -142,7 +145,9 @@ num_gen = len(gens)
 gen_i = [r.i for r in gens]
 gen_id = [r.id for r in gens]
 gen_bus = [bus_map[gen_i[i]] for i in range(num_gen)]
-gen_map = {(gen_i[i], gen_id[i]):i for i in range(num_gen)}
+gen_map = {}
+for i in range(num_gen):
+    gen_map[(gen_i[i], gen_id[i])] = i 
 gen_status = np.array([r.stat for r in gens])
 gen_pow_imag_max = np.array([r.qt / base_mva for r in gens]) * gen_status #cons
 gen_pow_imag_min = np.array([r.qb / base_mva for r in gens]) * gen_status #cons
@@ -181,7 +186,9 @@ line_j = [r.j for r in lines]
 line_ckt = [r.ckt for r in lines]
 line_orig_bus = [bus_map[line_i[i]] for i in range(num_line)]
 line_dest_bus = [bus_map[line_j[i]] for i in range(num_line)]
-line_map = {(line_i[i], line_j[i], line_ckt[i]):i for i in range(num_line)}
+line_map = {}
+for i in range(num_line):
+    line_map[(line_i[i], line_j[i], line_ckt[i])] = i 
 line_status = np.array([r.st for r in lines])
 line_adm_real = np.array([r.r / (r.r**2.0 + r.x**2.0) for r in lines]) * line_status
 line_adm_imag = np.array([-r.x / (r.r**2.0 + r.x**2.0) for r in lines]) * line_status
@@ -212,7 +219,9 @@ xfmr_j = [r.j for r in xfmrs]
 xfmr_ckt = [r.ckt for r in xfmrs]
 xfmr_orig_bus = [bus_map[xfmr_i[i]] for i in range(num_xfmr)]
 xfmr_dest_bus = [bus_map[xfmr_j[i]] for i in range(num_xfmr)]
-xfmr_map = {(xfmr_i[i], xfmr_j[i], xfmr_ckt[i]):i for i in range(num_xfmr)}
+xfmr_map = {}
+for i in range(num_xfmr):
+    xfmr_map[(xfmr_i[i], xfmr_j[i], xfmr_ckt[i])] = i 
 xfmr_status = np.array([r.stat for r in xfmrs])
 xfmr_adm_real = np.array([r.r12 / (r.r12**2.0 + r.x12**2.0) for r in xfmrs]) * xfmr_status
 xfmr_adm_real = np.transpose([xfmr_adm_real])
@@ -244,7 +253,9 @@ swshs = list(p.raw.switched_shunts.values())
 num_swsh = len(swshs)
 swsh_i = [r.i for r in swshs]
 swsh_bus = [bus_map[swsh_i[i]] for i in range(num_swsh)]
-swsh_map = {swsh_i[i]:i for i in range(num_swsh)}
+swsh_map = {}
+for i in range(num_swsh):
+    swsh_map[swsh_i[i]] = i 
 swsh_status = np.array([r.stat for r in swshs])
 swsh_adm_imag_max = np.array([
     (max(0.0, r.n1 * r.b1) +
@@ -339,20 +350,29 @@ ctg_label = [r.label for r in ctgs]
 ctg_map = dict(zip(ctg_label, range(num_ctg)))
 line_keys = set(line_key)
 xfmr_keys = set(xfmr_key)
-ctg_gen_keys_out = {
-    r.label:set([(e.i, e.id) for e in r.generator_out_events])
-    for r in ctgs}
-ctg_branch_keys_out = {
-    r.label:set([(e.i, e.j, e.ckt) for e in r.branch_out_events])
-    for r in ctgs}
-ctg_line_keys_out = {k:(v & line_keys) for k,v in ctg_branch_keys_out.items()}
-ctg_xfmr_keys_out = {k:(v & xfmr_keys) for k,v in ctg_branch_keys_out.items()}
-ctg_areas_affected = {
-    k.label:(
+ctg_gen_keys_out = {}
+for r in ctgs:
+    ctg_gen_keys_out[r.label] = set([(e.i, e.id) for e in r.generator_out_events])
+    
+ctg_branch_keys_out = {}
+for r in ctgs:
+    ctg_branch_keys_out[r.label] = set([(e.i, e.j, e.ckt) for e in r.branch_out_events])
+    
+ctg_line_keys_out = {}
+for k,v in ctg_branch_keys_out.items():
+    ctg_line_keys_out[k] = (v & line_keys) 
+    
+ctg_xfmr_keys_out = {}
+for k,v in ctg_branch_keys_out.items():
+    ctg_xfmr_keys_out[k] = (v & xfmr_keys) 
+    
+ctg_areas_affected = {}
+for k in ctgs:
+    ctg_areas_affected[k.label] = (
         set([bus_area[bus_map[r[0]]] for r in ctg_gen_keys_out[k.label]]) |
         set([bus_area[bus_map[r[0]]] for r in ctg_branch_keys_out[k.label]]) |
         set([bus_area[bus_map[r[1]]] for r in ctg_branch_keys_out[k.label]]))
-    for k in ctgs}
+    
 ctg_gens_out = [
     [gen_map[k] for k in ctg_gen_keys_out[ctg_label[i]]]
     for i in range(num_ctg)]
