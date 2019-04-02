@@ -6,7 +6,7 @@ Step 1: read para from data
 Step 2: build function
 Step 3: solve by tensorflow
 """
-
+print('test version')
 import numpy as np
 from scipy import sparse as sp
 import math
