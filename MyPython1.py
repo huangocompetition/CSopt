@@ -73,7 +73,9 @@ base_mva = p.raw.case_identification.sbase
 buses = list(p.raw.buses.values())
 num_bus = len(buses)
 bus_i = [r.i for r in buses]
-bus_map = {bus_i[i]:i for i in range(len(bus_i))}
+bus_map = {}
+for i in range(len(bus_i)):
+    bus_map[bus_i[i]]= i 
 bus_volt_mag_max = np.array([r.nvhi for r in buses]) #cons
 bus_volt_mag_min = np.array([r.nvlo for r in buses]) #cons
 ctg_bus_volt_mag_max = np.array([r.evhi for r in buses]) #cons
