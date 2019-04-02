@@ -153,7 +153,10 @@ gen_pow_imag_max = np.array([r.qt / base_mva for r in gens]) * gen_status #cons
 gen_pow_imag_min = np.array([r.qb / base_mva for r in gens]) * gen_status #cons
 gen_pow_real_max = np.array([r.pt / base_mva for r in gens]) * gen_status #cons
 gen_pow_real_min = np.array([r.pb / base_mva for r in gens]) * gen_status #cons
-gen_part_fact = {(r.i, r.id) : r.r for r in p.inl.generator_inl_records.values()}
+gen_part_fact = {}
+for r in p.inl.generator_inl_records.values():
+    gen_part_fact[(r.i, r.id)] = r.r 
+    
 gen_part_fact = np.array([gen_part_fact[(r.i, r.id)] for r in gens]) * gen_status
 bus_gen_matrix = sp.csc_matrix(
     ([1.0 for i in range(num_gen)],
