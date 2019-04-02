@@ -16,7 +16,7 @@ import time
 import csv
 import argparse
 
-
+print('start program')
 
 start_time = time.time()
 
@@ -2344,6 +2344,7 @@ class MyProblem(tfco.ConstrainedMinimizationProblem):
 
 
 #main start
+print('start main')
 problem = MyProblem()
 itertime = 20000
 print('now')
@@ -2363,7 +2364,7 @@ with tf.Session() as session:
     train_op = optimizer.minimize(problem)
     session.run(tf.global_variables_initializer())
     
-    
+    print('start loop')
     # 2 methods 1st:iter time ;  2nd:runing time
     while True:
     #for i in range(itertime):
