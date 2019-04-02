@@ -2256,7 +2256,7 @@ with tf.Session(config = config) as session:
             print('obj')
             print(session.run(problem.obj))
         '''
-        if time.time() - start_time > 60 * 5 - 30 : #5min #change to str write
+        if time.time() - start_time > 30#60 * 5 - 30 : #5min #change to str write
         #if i == itertime-1:
             
             #write sol1
