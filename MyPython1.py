@@ -100,6 +100,7 @@ num_load = len(loads)
 load_i = [r.i for r in loads]
 load_id = [r.id for r in loads]
 load_bus = [bus_map[load_i[i]] for i in range(num_load)]
+load_map = {}
 load_map = {(load_i[i], load_id[i]):i for i in range(num_load)}
 load_status = np.array([r.status for r in loads])
 load_const_pow_real = np.array([r.pl / base_mva for r in loads]) * load_status
