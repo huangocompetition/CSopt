@@ -440,7 +440,7 @@ class MyProblem(tfco.ConstrainedMinimizationProblem):
     '''
     #x. to initla good start point
     self.bus_volt_mag = tf.Variable(tf.ones([num_bus,1]),dtype=tf.float32)
-    self.bus_volt_ang = tf.Variable(tf.zeros([num_bus,1]),dtype=tf.float32)
+    self.bus_volt_ang = tf.Variable(tf.zeros([num_bus,1]),dtype=tf.float32) * (math.pi/180)
     self.bus_swsh_adm_imag = tf.Variable(tf.zeros([num_bus,1]),dtype=tf.float32) #shunt susceptance
     self.gen_pow_real = tf.Variable((gen_pow_real_max + gen_pow_real_min)/2,dtype=tf.float32) #generate real power pg
     self.gen_pow_imag = tf.Variable(tf.zeros([num_gen,1]),dtype=tf.float32) #generate imag power pg
@@ -926,10 +926,10 @@ with tf.Session(config = config) as session:
             
             #write sol1
             volt_mag = list(session.run(tf.transpose(problem.bus_volt_mag))[0])
-            volt_ang = list(session.run(tf.transpose(problem.bus_volt_ang))[0])
-            gen_real = list(session.run(tf.transpose(problem.gen_pow_real))[0])
-            gen_img = list(session.run(tf.transpose(problem.gen_pow_imag))[0])
-            swsh = list(session.run(tf.transpose(problem.bus_swsh_adm_imag))[0])
+            volt_ang = list(session.run(tf.transpose(problem.bus_volt_ang))[0] / (math.pi/180))
+            gen_real = list(session.run(tf.transpose(problem.gen_pow_real))[0] * base_mva)
+            gen_img = list(session.run(tf.transpose(problem.gen_pow_imag))[0] * base_mva)
+            swsh = list(session.run(tf.transpose(problem.bus_swsh_adm_imag))[0] * base_mva)
             
             sol1_content = ''            
             sol1_content += '--bus section\n'
