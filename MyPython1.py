@@ -30,10 +30,10 @@ hard_constr_tol = 1e-12
 #case path case2  scenario_1
 parser = argparse.ArgumentParser()
 
-parser.add_argument('raw')
-parser.add_argument('rop')
 parser.add_argument('con')
 parser.add_argument('inl')
+parser.add_argument('raw')
+parser.add_argument('rop')
 parser.add_argument('tim')
 parser.add_argument('sco')
 parser.add_argument('net')
