@@ -942,7 +942,7 @@ with tf.Session(config = config) as session:
                 sol2_content += '0.0'
 
             sol2_content = sol2_content.replace('(','').replace(')','')#todo
-            file_w = open('./examples/scenario_1/sol2.txt','w')
+            file_w = open('solution2.txt','w')
             file_w.write(sol2_content)
             file_w.close()
             
