@@ -446,6 +446,7 @@ class MyProblem(tfco.ConstrainedMinimizationProblem):
     self.gen_pow_imag = tf.Variable(tf.zeros([num_gen,1]),dtype=tf.float32) #generate imag power pg
     self.obj = tf.Variable(0.)
     self.test = tf.Variable(0.)
+    self.val = tf.Variable(0.)
 
     '''
     end of initialize object function
