@@ -826,7 +826,25 @@ class MyProblem(tfco.ConstrainedMinimizationProblem):
     self.test = penalty 
     self.obj = cost + penalty
     
-    return self.obj
+    #obj_cons
+    con1 = tf.reduce_sum(tf.maximum(0.,self.bus_volt_mag - bus_volt_mag_max))  
+    con2 = tf.reduce_sum(tf.maximum(0.,-self.bus_volt_mag + bus_volt_mag_min))
+    con3 = tf.reduce_sum(tf.maximum(0.,self.bus_swsh_adm_imag - bus_swsh_adm_imag_max))
+    con4 = tf.reduce_sum(tf.maximum(0.,-self.bus_swsh_adm_imag + bus_swsh_adm_imag_min))
+    con5 = tf.reduce_sum(tf.maximum(0.,self.gen_pow_real - gen_pow_real_max))
+    con6 = tf.reduce_sum(tf.maximum(0.,-self.gen_pow_real + gen_pow_real_min))
+    con7 = tf.reduce_sum(tf.maximum(0.,self.gen_pow_imag - gen_pow_imag_max))
+    con8 = tf.reduce_sum(tf.maximum(0.,-self.gen_pow_imag + gen_pow_imag_min))
+    self.obj_cons = con1 + con2 + con3 + con4 + con5 + con6 + con7 + con8
+    
+    #sig_cons
+    self.val = (tf.reduce_sum(line_curr_orig_mag_max_viol) + tf.reduce_sum(line_curr_dest_mag_max_viol)
+                    + tf.reduce_sum(xfmr_pow_orig_mag_max_viol) + tf.reduce_sum(xfmr_pow_dest_mag_max_viol)
+                    + tf.reduce_sum(bus_pow_balance_real_viol) + tf.reduce_sum(bus_pow_balance_imag_viol))
+
+    
+    
+    return self.obj + 100000000000 * base_mva * (tf.log(self.obj_cons) + tf.log(self.val))
 
 
 
