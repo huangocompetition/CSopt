@@ -902,11 +902,11 @@ class MyProblem(tfco.ConstrainedMinimizationProblem):
 
 #main start
 problem = MyProblem()
-itertime = 20000
-config = tf.ConfigProto()
-config.gpu_options.allow_growth = True
-with tf.Session(config = config) as session:
-#with tf.Session() as session:
+#itertime = 20000
+#config = tf.ConfigProto()
+#config.gpu_options.allow_growth = True
+#with tf.Session(config = config) as session:
+with tf.Session() as session:
     '''
     https://git.codingcafe.org/Mirrors/tensorflow/tensorflow/commit/ff15c81e2b92ef8fb47bb15790cffd18377a4ef2?expanded=1
     AdditiveExternalRegretOptimizer
@@ -917,6 +917,7 @@ with tf.Session(config = config) as session:
             optimizer=tf.train.AdagradOptimizer(learning_rate = 0.01))
     
     train_op = optimizer.minimize(problem)
+    
     session.run(tf.global_variables_initializer())
     
     # 2 methods 1st:iter time ;  2nd:runing time
