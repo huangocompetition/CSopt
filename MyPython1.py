@@ -445,6 +445,7 @@ class MyProblem(tfco.ConstrainedMinimizationProblem):
     self.gen_pow_real = tf.Variable((gen_pow_real_max + gen_pow_real_min)/2,dtype=tf.float32) #generate real power pg
     self.gen_pow_imag = tf.Variable(tf.zeros([num_gen,1]),dtype=tf.float32) #generate imag power pg
     self.obj = tf.Variable(0.)
+    self.obj_cons = tf.Variable(0.)
     self.test = tf.Variable(0.)
     self.val = tf.Variable(0.)
 
@@ -940,7 +941,7 @@ with tf.Session(config = config) as session:
             print('obj')
             print(session.run(problem.obj))
         '''
-        if time.time() - start_time > 600 - 20 : #10min #change to str write
+        if time.time() - start_time > 600 - 30 : #10min #change to str write
         #if i == itertime-1:
             
             #write sol1
