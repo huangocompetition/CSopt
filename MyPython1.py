@@ -786,7 +786,7 @@ class MyProblem(tfco.ConstrainedMinimizationProblem):
     
     '''
     self.obj_ = obj
-    self.cons_ = tf.constant(10000000 * base_mva) * (obj_cons + val)
+    self.cons_ = tf.constant(10000000 * base_mva) * (obj_cons + tf.log(val))
     self.test = tf.Variable(0.)
      
 
