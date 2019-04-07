@@ -15,6 +15,7 @@ import tensorflow as tf
 import time
 import argparse
 import data
+import sys,os
 
 start_time = time.time()
 
@@ -36,23 +37,23 @@ base_case_penalty_weight = 0.5 # dimensionless. corresponds to delta in the form
 hard_constr_tol = 1e-12
 
 
-#case path case2  scenario_1
-parser = argparse.ArgumentParser()
 
-parser.add_argument('con')
-parser.add_argument('inl')
-parser.add_argument('raw')
-parser.add_argument('rop')
-parser.add_argument('tim')
-parser.add_argument('sco')
-parser.add_argument('net')
+args = sys.argv
 
-args = parser.parse_args()
+con_name = args[1]
+inl_name = args[2]
+raw_name = args[3]
+rop_name = args[4]
+time_limit = args[5]
+score_method = args[6]
+network_model = args[7]
+sol1_name = 'solution1.txt'
+sol2_name = 'solution2.txt'
 
-raw = args.raw
-rop = args.rop
-con = args.con
-inl = args.inl
+raw = os.path.normpath(raw_name)
+rop = os.path.normpath(rop_name)
+con = os.path.normpath(con_name)
+inl = os.path.normpath(inl_name)
 
 
 
