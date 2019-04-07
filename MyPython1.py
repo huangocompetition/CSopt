@@ -1,9 +1,18 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Mar  8 15:21:22 2019
+
+@author: Zhao Huan
+Step 1: read para from data
+Step 2: build function
+Step 3: solve by tensorflow
+"""
+
 import numpy as np
 from scipy import sparse as sp
 import math
 import tensorflow as tf
 import time
-import csv
 import argparse
 import data
 
@@ -11,7 +20,7 @@ start_time = time.time()
 
 tfco = tf.contrib.constrained_optimization
 
-#soft constraint penalty parameters
+# soft constraint penalty parameters
 penalty_block_pow_real_max = [2.0, 50.0] # MW. when converted to p.u., this is overline_sigma_p in the formulation
 penalty_block_pow_real_coeff = [1000.0, 5000.0, 1000000.0] # USD/MW-h. when converted USD/p.u.-h this is lambda_p in the formulation
 penalty_block_pow_imag_max = [2.0, 50.0] # MVar. when converted to p.u., this is overline_sigma_q in the formulation
@@ -19,7 +28,7 @@ penalty_block_pow_imag_coeff = [1000.0, 5000.0, 1000000.0] # USD/MVar-h. when co
 penalty_block_pow_abs_max = [2.0, 50.0] # MVA. when converted to p.u., this is overline_sigma_s in the formulation
 penalty_block_pow_abs_coeff = [1000.0, 5000.0, 1000000.0] # USD/MWA-h. when converted USD/p.u.-h this is lambda_s in the formulation
 
-#weight on base case in objective
+# weight on base case in objective
 base_case_penalty_weight = 0.5 # dimensionless. corresponds to delta in the formulation
 
 # tolerance on hard constraints
@@ -46,6 +55,13 @@ con = args.con
 inl = args.inl
 
 
+
+#read data, using the data object in evaluation start   
+'''
+=================================
+my part start
+=================================
+'''
 
 p = data.Data()
 p.raw.read(raw)
@@ -203,6 +219,7 @@ line_adm_real = np.transpose([line_adm_real.astype(np.float32)])
 line_adm_imag = np.transpose([line_adm_imag.astype(np.float32)])
 line_adm_total_imag = np.transpose([line_adm_total_imag])
 line_curr_mag_max = np.transpose([line_curr_mag_max])
+ctg_line_curr_mag_max = np.transpose([ctg_line_curr_mag_max])
 
 
 #set_data_xfmr_params transformers
@@ -233,6 +250,7 @@ xfmr_tap_ang = np.transpose([xfmr_tap_ang])
 xfmr_pow_mag_max = np.array([r.rata1 / base_mva for r in xfmrs]) # todo check normalization
 xfmr_pow_mag_max = np.transpose([xfmr_pow_mag_max])
 ctg_xfmr_pow_mag_max = np.array([r.ratc1 / base_mva for r in xfmrs]) # todo check normalization
+ctg_xfmr_pow_mag_max = np.transpose([ctg_xfmr_pow_mag_max])
 bus_xfmr_orig_matrix = sp.csc_matrix(
     ([1.0 for i in range(num_xfmr)],
      (xfmr_orig_bus, list(range(num_xfmr)))),
@@ -312,30 +330,12 @@ for r in p.rop.generator_dispatch_records.values():
     gen_num_pl[gen] = len(i_to_keep)
     gen_pl_x[gen] = [gen_pl_x[gen][i] for i in i_to_keep]
     gen_pl_y[gen] = [gen_pl_y[gen][i] for i in i_to_keep]
-    # check cost function convexity - this should be done in a separate module
-    #'''
-    if gen_num_pl[gen] > 2:
-        d1 = [
-            ((gen_pl_y[gen][i + 1] - gen_pl_y[gen][i]) /
-             (gen_pl_x[gen][i + 1] - gen_pl_x[gen][i]))
-            for i in range(gen_num_pl[gen] - 1)]
-        d2 = [(d1[i + 1] - d1[i]) for i in range(gen_num_pl[gen] - 2)]
-        for i in range(len(d2)):
-            if d2[i] < 0.0:
-                print('cost convexity error')
-                print('gen i: %s' % r_bus)
-                print('gen id: %s' % r_genid)
-                print('num pairs: %s' % r_npairs)
-                print('pairs:')
-                print([(t.points[i].x, t.points[i].y) for i in range(r_npairs)])
-                #print(gen_num_pl[gen])
-                print('x points:')
-                print(gen_pl_x[gen])
-                print('y points:')
-                print(gen_pl_y[gen])
-                print('i: %s' % i)
-                print('slopes:')
-                print(d1)
+max_gen_num_pl = max(gen_num_pl)
+#fill to a matrix
+for i in range(num_gen):
+    while len(gen_pl_x[i]) < max_gen_num_pl:
+        gen_pl_x[i].insert(len(gen_pl_x[i])-1,(gen_pl_x[i][-1]+gen_pl_x[i][-2])/2)
+        gen_pl_y[i].insert(len(gen_pl_y[i])-1,(gen_pl_y[i][-1]+gen_pl_y[i][-2])/2)
 
 
 #set_data_ctg_params
@@ -381,9 +381,6 @@ ctg_areas_affected = [
     ctg_areas_affected[ctg_label[i]]
     for i in range(num_ctg)]
 
-'''
-set all data end
-'''
 
 
 '''
@@ -397,515 +394,429 @@ penalty_block_pow_abs_max = np.array(penalty_block_pow_abs_max) / base_mva #boun
 penalty_block_pow_abs_coeff = np.array(penalty_block_pow_abs_coeff) * base_mva #cost
 
 
+'''
+set all data end
+'''
+
+
+print('finish read data')
 
 
 
-
+#start tensorflow variables
 
 
 def eval_piecewise_linear_penalty(residual, penalty_block_max, penalty_block_coeff):
     '''residual, penaltyblock_max, penalty_block_coeff are 1-dimensional numpy arrays'''
 
-    r = residual
-    num_block = len(penalty_block_coeff)
-    num_block_bounded = len(penalty_block_max)
-    assert(num_block_bounded + 1 == num_block)
-    num_resid = r.get_shape().as_list()[0]
-    abs_resid = np.abs(r)
-    #penalty_block_max_extended = np.concatenate((penalty_block_max, np.inf))
-    remaining_resid = abs_resid
-    penalty = tf.Variable(tf.zeros([num_resid,1]))
-    for i in range(num_block):
-        #block_min = penalty_block_cumul_min[i]
-        #block_max = penalty_block_cumul_max[i]
-        block_coeff = penalty_block_coeff[i]
-        if i < num_block - 1:
-            block_max = penalty_block_max[i]
-            penalized_resid = tf.minimum(tf.constant(block_max,dtype=tf.float32), remaining_resid)
-            penalty = penalty + block_coeff * penalized_resid
-            remaining_resid = remaining_resid - penalized_resid
-        else:
-            penalty = penalty + block_coeff * remaining_resid
+    r = tf.abs(residual)
+    penalty1 = tf.constant(penalty_block_coeff[0],dtype=tf.float32) * tf.minimum(tf.constant(penalty_block_max[0],dtype=tf.float32 ),r - tf.constant(0.))
+    penalty2 = tf.constant(penalty_block_coeff[1],dtype=tf.float32) * tf.minimum(tf.maximum(tf.constant(0.),r - tf.constant(penalty_block_max[0],dtype=tf.float32)), tf.constant(penalty_block_max[1]-penalty_block_max[0],dtype=tf.float32))
+    penalty3 = tf.constant(penalty_block_coeff[2],dtype=tf.float32) * tf.maximum(tf.constant(0.),r - tf.constant(penalty_block_max[1],dtype=tf.float32))
+    penalty = penalty1 + penalty2 + penalty3
     return penalty
 
 
 
+
+
+#x. to initla good start point
+bus_volt_mag = tf.Variable(tf.ones([num_bus,1]),dtype=tf.float32)
+bus_volt_ang = tf.Variable(tf.zeros([num_bus,1]),dtype=tf.float32) * (math.pi/180)
+bus_swsh_adm_imag = tf.Variable(tf.zeros([num_bus,1]),dtype=tf.float32) #shunt susceptance
+gen_pow_real = tf.Variable((gen_pow_real_max + gen_pow_real_min)/2,dtype=tf.float32) #generate real power pg
+gen_pow_imag = tf.Variable(tf.zeros([num_gen,1]),dtype=tf.float32) #generate imag power pg
+
+
+
+#function 2
+pl_x = np.array(gen_pl_x).astype(np.float32)
+pl_y = np.array(gen_pl_y).astype(np.float32)
+
+#suppose the slope increase and ignore the insecure situation less and larger        
+slope =  tf.constant((pl_y[...,1:] - pl_y[...,:-1]) / (pl_x[...,1:] - pl_x[...,:-1]))
+max_output = tf.constant(pl_x[...,1:] - pl_x[...,:-1])
+x_change = tf.maximum(tf.constant(np.zeros([num_gen,1]),tf.float32), tf.minimum(max_output, gen_pow_real - tf.constant(pl_x[...,:-1])))
+y_value = pl_y[...,0]
+gen_cost = tf.constant(np.sum(y_value)) + tf.reduce_sum(slope * x_change)
+       
+#if gen_status[k] == 0.0:#todo 
+    #continue
+cost = gen_cost
+ 
+#line part
+constant_line_orig_bus = tf.constant(line_orig_bus)
+constant_line_dest_bus = tf.constant(line_dest_bus)
+line_orig_volt_mag = tf.gather(bus_volt_mag, constant_line_orig_bus)
+line_dest_volt_mag = tf.gather(bus_volt_mag, constant_line_dest_bus)
+line_volt_ang_diff = tf.gather(bus_volt_ang, constant_line_orig_bus) - tf.gather(bus_volt_ang,constant_line_dest_bus)
+line_cos_volt_ang_diff = tf.cos(line_volt_ang_diff)
+line_sin_volt_ang_diff = tf.sin(line_volt_ang_diff)
+line_orig_dest_volt_mag_prod = line_orig_volt_mag * line_dest_volt_mag
+line_orig_volt_mag_sq = line_orig_volt_mag ** 2.0
+line_dest_volt_mag_sq = line_dest_volt_mag ** 2.0
+
+#function 38
+constant_line_adm_real = tf.constant(line_adm_real)
+constant_line_adm_imag = tf.constant(line_adm_imag)
+constant_line_adm_total_imag = tf.constant(line_adm_total_imag, dtype = tf.float32)
+line_pow_orig_real = ( # line_status not needed as we have already done it on the parameter level
+    constant_line_adm_real * line_orig_volt_mag_sq + # ** 2.0 +
+    ( - constant_line_adm_real * line_cos_volt_ang_diff
+      - constant_line_adm_imag * line_sin_volt_ang_diff) *
+    line_orig_dest_volt_mag_prod)
+#function 39
+line_pow_orig_imag = (
+    - constant_line_adm_total_imag * line_orig_volt_mag_sq + # ** 2.0 +
+    (   constant_line_adm_imag * line_cos_volt_ang_diff
+      - constant_line_adm_real * line_sin_volt_ang_diff) *
+    line_orig_dest_volt_mag_prod)
+#function 40
+line_pow_dest_real = (
+    constant_line_adm_real * line_dest_volt_mag_sq + # ** 2.0 +
+    ( - constant_line_adm_real * line_cos_volt_ang_diff
+      + constant_line_adm_imag * line_sin_volt_ang_diff) *
+    line_orig_dest_volt_mag_prod)
+#function 41
+line_pow_dest_imag = (
+    - constant_line_adm_total_imag * line_dest_volt_mag_sq + # ** 2.0 +
+    (   constant_line_adm_imag * line_cos_volt_ang_diff
+      + constant_line_adm_real * line_sin_volt_ang_diff) *
+    line_orig_dest_volt_mag_prod)
+#function 52-53
+constant_line_curr_mag_max = tf.constant(line_curr_mag_max, dtype = tf.float32)
+line_curr_orig_mag_max_viol = tf.maximum(
+    tf.constant(0.0),
+    (line_pow_orig_real**2.0 + line_pow_orig_imag**2.0 + hard_constr_tol)**0.5 -
+    constant_line_curr_mag_max * line_orig_volt_mag)
+#function 54
+line_curr_dest_mag_max_viol = tf.maximum(
+    tf.constant(0.0),
+    (line_pow_dest_real**2.0 + line_pow_dest_imag**2.0 + hard_constr_tol)**0.5 -
+    constant_line_curr_mag_max * line_dest_volt_mag)
+ 
+
+#trnas aprt
+constant_xfmr_orig_bus = tf.constant(xfmr_orig_bus)
+constant_xfmr_dest_bus = tf.constant(xfmr_dest_bus)
+xfmr_orig_volt_mag = tf.gather(bus_volt_mag, constant_xfmr_orig_bus)
+xfmr_dest_volt_mag = tf.gather(bus_volt_mag, constant_xfmr_dest_bus)
+xfmr_volt_ang_diff = tf.gather(bus_volt_ang, constant_xfmr_orig_bus) - tf.gather(bus_volt_ang, constant_xfmr_dest_bus) - tf.constant(xfmr_tap_ang, dtype = tf.float32)
+xfmr_cos_volt_ang_diff = tf.cos(xfmr_volt_ang_diff)
+xfmr_sin_volt_ang_diff = tf.sin(xfmr_volt_ang_diff)
+#xfmr_orig_dest_volt_mag_prod = xfmr_orig_volt_mag * xfmr_dest_volt_mag
+xfmr_orig_volt_mag_sq = xfmr_orig_volt_mag ** 2.0
+xfmr_dest_volt_mag_sq = xfmr_dest_volt_mag ** 2.0
+#function 42
+constant_xfmr_adm_real = tf.constant(xfmr_adm_real, dtype = tf.float32)
+constant_xfmr_adm_imag = tf.constant(xfmr_adm_imag, dtype = tf.float32)
+constant_xfmr_tap_mag = tf.constant(xfmr_tap_mag, dtype = tf.float32)
+constant_xfmr_adm_mag_real = tf.constant(xfmr_adm_mag_real, dtype = tf.float32)
+constant_xfmr_adm_mag_imag = tf.constant(xfmr_adm_mag_imag, dtype = tf.float32)
+xfmr_pow_orig_real = (
+    (constant_xfmr_adm_real / constant_xfmr_tap_mag**2.0 + constant_xfmr_adm_mag_real) * xfmr_orig_volt_mag_sq +
+    ( - constant_xfmr_adm_real / constant_xfmr_tap_mag * xfmr_cos_volt_ang_diff
+      - constant_xfmr_adm_imag / constant_xfmr_tap_mag * xfmr_sin_volt_ang_diff) *
+        xfmr_orig_volt_mag * xfmr_dest_volt_mag)
+#function 43
+xfmr_pow_orig_imag = (
+    - (constant_xfmr_adm_imag / constant_xfmr_tap_mag**2.0 + constant_xfmr_adm_mag_imag) * xfmr_orig_volt_mag_sq +
+    (   constant_xfmr_adm_imag / constant_xfmr_tap_mag * xfmr_cos_volt_ang_diff
+      - constant_xfmr_adm_real / constant_xfmr_tap_mag * xfmr_sin_volt_ang_diff) *
+        xfmr_orig_volt_mag * xfmr_dest_volt_mag)
+#function 44
+xfmr_pow_dest_real = (
+    constant_xfmr_adm_real * xfmr_dest_volt_mag_sq +
+    ( - constant_xfmr_adm_real / constant_xfmr_tap_mag * xfmr_cos_volt_ang_diff
+      + constant_xfmr_adm_imag / constant_xfmr_tap_mag * xfmr_sin_volt_ang_diff) *
+        xfmr_orig_volt_mag * xfmr_dest_volt_mag)
+#function 45
+xfmr_pow_dest_imag = (
+    - constant_xfmr_adm_imag * xfmr_dest_volt_mag_sq +
+    (   constant_xfmr_adm_imag / constant_xfmr_tap_mag * xfmr_cos_volt_ang_diff
+      + constant_xfmr_adm_real / constant_xfmr_tap_mag * xfmr_sin_volt_ang_diff) *
+        xfmr_orig_volt_mag * xfmr_dest_volt_mag)
+
+#function 55-56    
+constant_xfmr_pow_mag_max = tf.constant(xfmr_pow_mag_max, dtype = tf.float32)
+xfmr_pow_orig_mag_max_viol = tf.maximum(
+    tf.constant(0.0),
+    (xfmr_pow_orig_real**2.0 + xfmr_pow_orig_imag**2.0 + hard_constr_tol)**0.5 -
+    constant_xfmr_pow_mag_max)
+#function 57
+xfmr_pow_dest_mag_max_viol = tf.maximum(
+    tf.constant(0.0),
+    (xfmr_pow_dest_real**2.0 + xfmr_pow_dest_imag**2.0 + hard_constr_tol)**0.5 -
+    constant_xfmr_pow_mag_max)
+
+#power part
+bus_load_pow_real = tf.constant(bus_load_const_pow_real, dtype = tf.float32)
+bus_load_pow_imag = tf.constant(bus_load_const_pow_imag, dtype = tf.float32)
+#function 46 bFS v^2
+constant_bus_fxsh_adm_real = tf.constant(bus_fxsh_adm_real, dtype = tf.float32)
+bus_fxsh_pow_real = constant_bus_fxsh_adm_real  * (bus_volt_mag ** 2.0)
+#function 49 bFS v^2
+constant_bus_fxsh_adm_imag = tf.constant(bus_fxsh_adm_imag, dtype = tf.float32)
+bus_fxsh_pow_imag = - constant_bus_fxsh_adm_imag * (bus_volt_mag ** 2.0)
+#function 49 bCS v^2
+bus_swsh_pow_imag = -bus_swsh_adm_imag * bus_volt_mag**2.0
+
+#function 46
+bus_pow_balance_real_viol = tf.abs((
+    tf.matmul(tf.constant(bus_gen_matrix), gen_pow_real) -
+    bus_load_pow_real -
+    bus_fxsh_pow_real -
+    tf.matmul(tf.constant(bus_line_orig_matrix),line_pow_orig_real) -
+    tf.matmul(tf.constant(bus_line_dest_matrix),line_pow_dest_real) -
+    tf.matmul(tf.constant(bus_xfmr_orig_matrix),xfmr_pow_orig_real) -
+    tf.matmul(tf.constant(bus_xfmr_dest_matrix),xfmr_pow_dest_real)))
+#function 49
+bus_pow_balance_imag_viol = tf.abs((
+    tf.matmul(tf.constant(bus_gen_matrix),gen_pow_imag) -
+    bus_load_pow_imag -
+    bus_fxsh_pow_imag -
+    bus_swsh_pow_imag -
+    tf.matmul(tf.constant(bus_line_orig_matrix),line_pow_orig_imag) -
+    tf.matmul(tf.constant(bus_line_dest_matrix),line_pow_dest_imag) -
+    tf.matmul(tf.constant(bus_xfmr_orig_matrix),xfmr_pow_orig_imag) -
+    tf.matmul(tf.constant(bus_xfmr_dest_matrix),xfmr_pow_dest_imag)))
+
+
+#function 6-19
+base_penalty = (
+    tf.reduce_sum(
+        eval_piecewise_linear_penalty(
+            tf.maximum(
+                line_curr_orig_mag_max_viol,
+                line_curr_dest_mag_max_viol),
+            penalty_block_pow_abs_max,
+            penalty_block_pow_abs_coeff)) +
+    tf.reduce_sum(
+        eval_piecewise_linear_penalty(
+            tf.maximum(
+                xfmr_pow_orig_mag_max_viol,
+                xfmr_pow_dest_mag_max_viol),
+            penalty_block_pow_abs_max,
+            penalty_block_pow_abs_coeff)) +
+    tf.reduce_sum(
+        eval_piecewise_linear_penalty(
+            bus_pow_balance_real_viol,
+            penalty_block_pow_real_max,
+            penalty_block_pow_real_coeff)) +
+    tf.reduce_sum(
+        eval_piecewise_linear_penalty(
+            bus_pow_balance_imag_viol,
+            penalty_block_pow_imag_max,
+            penalty_block_pow_imag_coeff)))
+
+
+
+#ctg part
+i = 0
+for i in range(len(ctgs)):
+    ctg_current = ctg_map[ctg_label[i]]
+    
+    #genpart out of service to set the minmax as zeros
+    gens_out_of_service = set(gen_out_of_service) | set(ctg_gens_out[ctg_current])
+    ctg_gen_out_of_service = sorted(list(gens_out_of_service))
+
+    #todo check none situation
+    ctg_power_multi_vector = np.ones(num_gen)
+    for index in ctg_gen_out_of_service:
+        ctg_power_multi_vector[index] = 0.
+    if i == 0:
+        ctg_power_multi_matrix = np.transpose([ctg_power_multi_vector])
+    else:
+        ctg_power_multi_matrix = np.column_stack((ctg_power_multi_matrix,ctg_power_multi_vector))
+
+    #todo check gradient 
+    ctg_line_multi_vector = np.ones(num_line)
+    for index in ctg_lines_out[ctg_current]:
+        ctg_line_multi_vector[index] = 0.
+    if i == 0:
+        ctg_line_multi_matrix =  np.transpose([ctg_line_multi_vector])
+    else:
+        ctg_line_multi_matrix = np.column_stack((ctg_line_multi_matrix,ctg_line_multi_vector))
+    
+    #todo check none situation
+    ctg_xfmr_multi_vector = np.ones(num_xfmr)
+    for index in ctg_xfmrs_out[ctg_current]:
+        ctg_xfmr_multi_vector[index] = 0.
+    if i == 0:
+        ctg_xfmr_multi_matrix = np.transpose([ctg_xfmr_multi_vector])
+    else:
+        ctg_xfmr_multi_matrix = np.column_stack((ctg_xfmr_multi_matrix,ctg_xfmr_multi_vector))
+    
+    i += 0
+        
+        
+        
+#ctg_gen p,q        
+ctg_gen_pow_real = gen_pow_real * tf.constant(ctg_power_multi_matrix, dtype = tf.float32)
+ctg_gen_pow_imag = gen_pow_imag * tf.constant(ctg_power_multi_matrix, dtype = tf.float32)
+
+
+#line part
+ctg_line_pow_orig_real = line_pow_orig_real * tf.constant(ctg_line_multi_matrix, dtype = tf.float32)
+ctg_line_pow_orig_imag = line_pow_orig_imag * tf.constant(ctg_line_multi_matrix, dtype = tf.float32)
+ctg_line_pow_dest_real = line_pow_dest_real * tf.constant(ctg_line_multi_matrix, dtype = tf.float32)
+ctg_line_pow_dest_imag = line_pow_dest_imag * tf.constant(ctg_line_multi_matrix, dtype = tf.float32)
+
+#function 78
+constant_ctg_line_curr_mag_max = tf.constant(ctg_line_curr_mag_max, dtype = tf.float32)
+ctg_line_curr_orig_mag_max_viol = tf.maximum(
+    tf.constant(0.0),
+    (ctg_line_pow_orig_real**2.0 + ctg_line_pow_orig_imag**2.0 + hard_constr_tol)**0.5 -
+     constant_ctg_line_curr_mag_max * line_orig_volt_mag)
+#function 80
+ctg_line_curr_dest_mag_max_viol = tf.maximum(
+    tf.constant(0.0),
+    (ctg_line_pow_dest_real**2.0 + ctg_line_pow_dest_imag**2.0 + hard_constr_tol)**0.5 -
+    constant_ctg_line_curr_mag_max * line_dest_volt_mag)
+
+
+
+#trnas aprt
+ctg_xfmr_pow_orig_real = xfmr_pow_orig_real * tf.constant(ctg_xfmr_multi_matrix, dtype = tf.float32)
+ctg_xfmr_pow_orig_imag = xfmr_pow_orig_imag * tf.constant(ctg_xfmr_multi_matrix, dtype = tf.float32)
+ctg_xfmr_pow_dest_real = xfmr_pow_dest_real * tf.constant(ctg_xfmr_multi_matrix, dtype = tf.float32)
+ctg_xfmr_pow_dest_imag = xfmr_pow_dest_imag * tf.constant(ctg_xfmr_multi_matrix, dtype = tf.float32)  
+
+#function 81 
+constant_ctg_xfmr_pow_mag_max = tf.constant(ctg_xfmr_pow_mag_max, dtype = tf.float32)
+ctg_xfmr_pow_orig_mag_max_viol = tf.maximum(
+    tf.constant(0.0),
+    (ctg_xfmr_pow_orig_real**2.0 + ctg_xfmr_pow_orig_imag**2.0 + hard_constr_tol)**0.5 -
+    constant_ctg_xfmr_pow_mag_max)
+#function 83
+ctg_xfmr_pow_dest_mag_max_viol = tf.maximum(
+    tf.constant(0.0),
+    (ctg_xfmr_pow_dest_real**2.0 + ctg_xfmr_pow_dest_imag**2.0 + hard_constr_tol)**0.5 -
+    constant_ctg_xfmr_pow_mag_max)
+
+       
+#power part
+#function 72,75
+ctg_bus_pow_balance_real_viol = tf.abs(
+    tf.matmul(tf.constant(bus_gen_matrix),ctg_gen_pow_real) -
+    bus_load_pow_real -
+    bus_fxsh_pow_real -
+    tf.matmul(tf.constant(bus_line_orig_matrix),ctg_line_pow_orig_real) -
+    tf.matmul(tf.constant(bus_line_dest_matrix),ctg_line_pow_dest_real) -
+    tf.matmul(tf.constant(bus_xfmr_orig_matrix),ctg_xfmr_pow_orig_real) -
+    tf.matmul(tf.constant(bus_xfmr_dest_matrix),ctg_xfmr_pow_dest_real))
+ctg_bus_pow_balance_imag_viol = tf.abs(
+    tf.matmul(tf.constant(bus_gen_matrix),ctg_gen_pow_imag) -
+    bus_load_pow_imag -
+    bus_fxsh_pow_imag -
+    bus_swsh_pow_imag -
+    tf.matmul(tf.constant(bus_line_orig_matrix),ctg_line_pow_orig_imag) -
+    tf.matmul(tf.constant(bus_line_dest_matrix),ctg_line_pow_dest_imag) -
+    tf.matmul(tf.constant(bus_xfmr_orig_matrix),ctg_xfmr_pow_orig_imag) -
+    tf.matmul(tf.constant(bus_xfmr_dest_matrix),ctg_xfmr_pow_dest_imag))
+
+
+#function 6-19
+ctg_penalty =  (
+        tf.reduce_sum(
+            eval_piecewise_linear_penalty(
+                tf.maximum(
+                    ctg_line_curr_orig_mag_max_viol,
+                    ctg_line_curr_dest_mag_max_viol),
+                penalty_block_pow_abs_max,
+                penalty_block_pow_abs_coeff)) +
+        tf.reduce_sum(
+            eval_piecewise_linear_penalty(
+                tf.maximum(
+                    ctg_xfmr_pow_orig_mag_max_viol,
+                    ctg_xfmr_pow_dest_mag_max_viol),
+                penalty_block_pow_abs_max,
+                penalty_block_pow_abs_coeff)) +
+        tf.reduce_sum(
+            eval_piecewise_linear_penalty(
+                ctg_bus_pow_balance_real_viol,
+                penalty_block_pow_real_max,
+                penalty_block_pow_real_coeff)) +
+        tf.reduce_sum(
+            eval_piecewise_linear_penalty(
+                ctg_bus_pow_balance_imag_viol,
+                penalty_block_pow_imag_max,
+                penalty_block_pow_imag_coeff)))
+            
+#ctg_penalty = 
+
+
+
+
+#obj_cons
+con1 = tf.reduce_sum(tf.maximum(tf.constant(0.), bus_volt_mag - tf.constant(bus_volt_mag_max, dtype = tf.float32)))  
+con2 = tf.reduce_sum(tf.maximum(tf.constant(0.), -bus_volt_mag + tf.constant(bus_volt_mag_min, dtype = tf.float32)))
+con3 = tf.reduce_sum(tf.maximum(tf.constant(0.), bus_swsh_adm_imag - tf.constant(bus_swsh_adm_imag_max, dtype = tf.float32)))
+con4 = tf.reduce_sum(tf.maximum(tf.constant(0.), -bus_swsh_adm_imag + tf.constant(bus_swsh_adm_imag_min, dtype = tf.float32)))
+con5 = tf.reduce_sum(tf.maximum(tf.constant(0.), gen_pow_real - tf.constant(gen_pow_real_max, dtype = tf.float32)))
+con6 = tf.reduce_sum(tf.maximum(tf.constant(0.), -gen_pow_real + tf.constant(gen_pow_real_min, dtype = tf.float32)))
+con7 = tf.reduce_sum(tf.maximum(tf.constant(0.), gen_pow_imag - tf.constant(gen_pow_imag_max, dtype = tf.float32)))
+con8 = tf.reduce_sum(tf.maximum(tf.constant(0.), -gen_pow_imag + tf.constant(gen_pow_imag_min, dtype = tf.float32)))
+obj_cons = con1 + con2 + con3 + con4 + con5 + con6 + con7 + con8
+
+
+#sig_cons
+val = (tf.reduce_sum(line_curr_orig_mag_max_viol) + tf.reduce_sum(line_curr_dest_mag_max_viol)
+                + tf.reduce_sum(xfmr_pow_orig_mag_max_viol) + tf.reduce_sum(xfmr_pow_dest_mag_max_viol)
+                + tf.reduce_sum(bus_pow_balance_real_viol) + tf.reduce_sum(bus_pow_balance_imag_viol))
+
+
+constant_base_case_penalty_weight = tf.constant(base_case_penalty_weight)
+constant_ctg_case_penalty_weight = tf.constant(1-base_case_penalty_weight)
+constant_num_k = tf.constant(max(1.0, float(num_ctg)))
+
+#function 1
+penalty =  constant_base_case_penalty_weight * base_penalty + constant_ctg_case_penalty_weight/constant_num_k * ctg_penalty
+obj = cost + penalty
+print('finish graphing')
+
 #do calculation
 class MyProblem(tfco.ConstrainedMinimizationProblem):
 
-  def __init__(self):
+  def __init__(self, obj, obj_cons, val):
     '''
     initial all para of object function
     
     '''
-    #x. to initla good start point
-    self.bus_volt_mag = tf.Variable(tf.ones([num_bus,1]),dtype=tf.float32)
-    self.bus_volt_ang = tf.Variable(tf.zeros([num_bus,1]),dtype=tf.float32) * (math.pi/180)
-    self.bus_swsh_adm_imag = tf.Variable(tf.zeros([num_bus,1]),dtype=tf.float32) #shunt susceptance
-    self.gen_pow_real = tf.Variable((gen_pow_real_max + gen_pow_real_min)/2,dtype=tf.float32) #generate real power pg
-    self.gen_pow_imag = tf.Variable(tf.zeros([num_gen,1]),dtype=tf.float32) #generate imag power pg
-    self.obj = tf.Variable(0.)
-    self.obj_cons = tf.Variable(0.)
+    self.obj_ = obj
+    self.cons_ = tf.constant(10000000 * base_mva) * (obj_cons + val)
     self.test = tf.Variable(0.)
-    self.val = tf.Variable(0.)
-
-    '''
-    end of initialize object function
-    
-    '''
-
+     
 
   @property
   def objective(self):
-    '''
-    self.cost = tf.Variable(0) #total cost sum of cg
-    self.penalty = tf.Variable(0) #pena c sig c sig k
-    self.base_penalty = tf.Variable(0)
-    self.ctg_penalty = tf.Variable(0)   
-    self.infeas_all = 1 # starts out infeasible ??
-    '''
-    
-    #function 2
-    pl_x = np.array(gen_pl_x).astype(np.float32)
-    pl_y = np.array(gen_pl_y).astype(np.float32)
-    
-    #suppose the slope increase and ignore the insecure situation less and larger        
-    slope = (pl_y[...,1:] - pl_y[...,:-1]) / (pl_x[...,1:] - pl_x[...,:-1])
-    x_change = tf.maximum(tf.zeros([num_gen,1]), tf.minimum(pl_x[...,1:] - pl_x[...,:-1], self.gen_pow_real - pl_x[...,:-1]))
-    y_value = pl_y[...,0]
-    gen_cost = tf.constant(np.sum(y_value)) + tf.reduce_sum(slope * x_change)
-           
-    #if gen_status[k] == 0.0:#todo 
-        #continue
-    cost = gen_cost
-    
-    
-    #line part
-    line_orig_volt_mag = tf.gather(self.bus_volt_mag,line_orig_bus)
-    line_dest_volt_mag = tf.gather(self.bus_volt_mag,line_dest_bus)
-    line_volt_ang_diff = tf.gather(self.bus_volt_ang,line_orig_bus) - tf.gather(self.bus_volt_ang,line_dest_bus)
-    line_cos_volt_ang_diff = tf.cos(line_volt_ang_diff)
-    line_sin_volt_ang_diff = tf.sin(line_volt_ang_diff)
-    line_orig_dest_volt_mag_prod = line_orig_volt_mag * line_dest_volt_mag
-    line_orig_volt_mag_sq = line_orig_volt_mag ** 2.0
-    line_dest_volt_mag_sq = line_dest_volt_mag ** 2.0
-    
-    #function 38
-    line_pow_orig_real = ( # line_status not needed as we have already done it on the parameter level
-        line_adm_real * line_orig_volt_mag_sq + # ** 2.0 +
-        ( - line_adm_real * line_cos_volt_ang_diff
-          - line_adm_imag * line_sin_volt_ang_diff) *
-        line_orig_dest_volt_mag_prod)
-    #function 39
-    line_pow_orig_imag = (
-        - line_adm_total_imag * line_orig_volt_mag_sq + # ** 2.0 +
-        (   line_adm_imag * line_cos_volt_ang_diff
-          - line_adm_real * line_sin_volt_ang_diff) *
-        line_orig_dest_volt_mag_prod)
-    #function 40
-    line_pow_dest_real = (
-        line_adm_real * line_dest_volt_mag_sq + # ** 2.0 +
-        ( - line_adm_real * line_cos_volt_ang_diff
-          + line_adm_imag * line_sin_volt_ang_diff) *
-        line_orig_dest_volt_mag_prod)
-    #function 41
-    line_pow_dest_imag = (
-        - line_adm_total_imag * line_dest_volt_mag_sq + # ** 2.0 +
-        (   line_adm_imag * line_cos_volt_ang_diff
-          + line_adm_real * line_sin_volt_ang_diff) *
-        line_orig_dest_volt_mag_prod)
-    #function 52-53
-    line_curr_orig_mag_max_viol = tf.maximum(
-        0.0,
-        (line_pow_orig_real**2.0 + line_pow_orig_imag**2.0 + hard_constr_tol)**0.5 -
-        line_curr_mag_max * line_orig_volt_mag)
-    #function 54
-    line_curr_dest_mag_max_viol = tf.maximum(
-        0.0,
-        (line_pow_dest_real**2.0 + line_pow_dest_imag**2.0 + hard_constr_tol)**0.5 -
-        line_curr_mag_max * line_dest_volt_mag)
-    
-    #trnas aprt
-    xfmr_orig_volt_mag = tf.gather(self.bus_volt_mag,xfmr_orig_bus)
-    xfmr_dest_volt_mag = tf.gather(self.bus_volt_mag,xfmr_dest_bus)
-    xfmr_volt_ang_diff = tf.gather(self.bus_volt_ang,xfmr_orig_bus) - tf.gather(self.bus_volt_ang,xfmr_dest_bus) - xfmr_tap_ang
-    xfmr_cos_volt_ang_diff = tf.cos(xfmr_volt_ang_diff)
-    xfmr_sin_volt_ang_diff = tf.sin(xfmr_volt_ang_diff)
-    #xfmr_orig_dest_volt_mag_prod = xfmr_orig_volt_mag * xfmr_dest_volt_mag
-    xfmr_orig_volt_mag_sq = xfmr_orig_volt_mag ** 2.0
-    xfmr_dest_volt_mag_sq = xfmr_dest_volt_mag ** 2.0
-    #function 42
-    xfmr_pow_orig_real = (
-        (xfmr_adm_real / xfmr_tap_mag**2.0 + xfmr_adm_mag_real) * xfmr_orig_volt_mag_sq +
-        ( - xfmr_adm_real / xfmr_tap_mag * xfmr_cos_volt_ang_diff
-          - xfmr_adm_imag / xfmr_tap_mag * xfmr_sin_volt_ang_diff) *
-            xfmr_orig_volt_mag * xfmr_dest_volt_mag)
-    #function 43
-    xfmr_pow_orig_imag = (
-        - (xfmr_adm_imag / xfmr_tap_mag**2.0 + xfmr_adm_mag_imag) * xfmr_orig_volt_mag_sq +
-        (   xfmr_adm_imag / xfmr_tap_mag * xfmr_cos_volt_ang_diff
-          - xfmr_adm_real / xfmr_tap_mag * xfmr_sin_volt_ang_diff) *
-            xfmr_orig_volt_mag * xfmr_dest_volt_mag)
-    #function 44
-    xfmr_pow_dest_real = (
-        xfmr_adm_real * xfmr_dest_volt_mag_sq +
-        ( - xfmr_adm_real / xfmr_tap_mag * xfmr_cos_volt_ang_diff
-          + xfmr_adm_imag / xfmr_tap_mag * xfmr_sin_volt_ang_diff) *
-            xfmr_orig_volt_mag * xfmr_dest_volt_mag)
-    #function 45
-    xfmr_pow_dest_imag = (
-        - xfmr_adm_imag * xfmr_dest_volt_mag_sq +
-        (   xfmr_adm_imag / xfmr_tap_mag * xfmr_cos_volt_ang_diff
-          + xfmr_adm_real / xfmr_tap_mag * xfmr_sin_volt_ang_diff) *
-            xfmr_orig_volt_mag * xfmr_dest_volt_mag)
-    #function 55-56    
-    xfmr_pow_orig_mag_max_viol = tf.maximum(
-        0.0,
-        (xfmr_pow_orig_real**2.0 + xfmr_pow_orig_imag**2.0 + hard_constr_tol)**0.5 -
-        xfmr_pow_mag_max)
-    #function 57
-    xfmr_pow_dest_mag_max_viol = tf.maximum(
-        0.0,
-        (xfmr_pow_dest_real**2.0 + xfmr_pow_dest_imag**2.0 + hard_constr_tol)**0.5 -
-        xfmr_pow_mag_max)
-    
-    #power part
-    bus_load_pow_real = bus_load_const_pow_real
-    bus_load_pow_imag = bus_load_const_pow_imag
-    #function 46 bFS v^2
-    bus_fxsh_pow_real = bus_fxsh_adm_real * (self.bus_volt_mag ** 2.0)
-    #function 49 bFS v^2
-    bus_fxsh_pow_imag = - bus_fxsh_adm_imag * (self.bus_volt_mag ** 2.0)
-    #function 49 bCS v^2
-    bus_swsh_pow_imag = -self.bus_swsh_adm_imag * self.bus_volt_mag**2.0
-    
-    #function 46
-    bus_pow_balance_real_viol = (
-        tf.matmul(tf.constant(bus_gen_matrix),self.gen_pow_real) -
-        bus_load_pow_real -
-        bus_fxsh_pow_real -
-        tf.matmul(tf.constant(bus_line_orig_matrix),line_pow_orig_real) -
-        tf.matmul(tf.constant(bus_line_dest_matrix),line_pow_dest_real) -
-        tf.matmul(tf.constant(bus_xfmr_orig_matrix),xfmr_pow_orig_real) -
-        tf.matmul(tf.constant(bus_xfmr_dest_matrix),xfmr_pow_dest_real))
-    #function 49
-    bus_pow_balance_imag_viol = (
-        tf.matmul(tf.constant(bus_gen_matrix),self.gen_pow_imag) -
-        bus_load_pow_imag -
-        bus_fxsh_pow_imag -
-        bus_swsh_pow_imag -
-        tf.matmul(tf.constant(bus_line_orig_matrix),line_pow_orig_imag) -
-        tf.matmul(tf.constant(bus_line_dest_matrix),line_pow_dest_imag) -
-        tf.matmul(tf.constant(bus_xfmr_orig_matrix),xfmr_pow_orig_imag) -
-        tf.matmul(tf.constant(bus_xfmr_dest_matrix),xfmr_pow_dest_imag))
-
-
-    #function 6-19
-    base_penalty = base_case_penalty_weight * (
-        tf.reduce_sum(
-            eval_piecewise_linear_penalty(
-                tf.maximum(
-                    line_curr_orig_mag_max_viol,
-                    line_curr_dest_mag_max_viol),
-                penalty_block_pow_abs_max,
-                penalty_block_pow_abs_coeff)) +
-        tf.reduce_sum(
-            eval_piecewise_linear_penalty(
-                tf.maximum(
-                    xfmr_pow_orig_mag_max_viol,
-                    xfmr_pow_dest_mag_max_viol),
-                penalty_block_pow_abs_max,
-                penalty_block_pow_abs_coeff)) +
-        tf.reduce_sum(
-            eval_piecewise_linear_penalty(
-                bus_pow_balance_real_viol,
-                penalty_block_pow_real_max,
-
-                penalty_block_pow_real_coeff)) +
-        tf.reduce_sum(
-            eval_piecewise_linear_penalty(
-                bus_pow_balance_imag_viol,
-                penalty_block_pow_imag_max,
-                penalty_block_pow_imag_coeff)))
-
-
-    
-    #ctg part
-    #todo change
-
-    ctg_penalty = tf.Variable(0.)
-    for i in range(len(ctgs)):
-        ctg_current = ctg_map[ctg_label[i]]
-        
-        #genpart out of service to set the minmax as zeros
-        gens_out_of_service = set(gen_out_of_service) | set(ctg_gens_out[ctg_current])
-        ctg_gen_out_of_service = sorted(list(gens_out_of_service))
-
-        #todo check none situation
-        ctg_power_multi_vector = np.ones([num_gen,1])
-        for index in ctg_gen_out_of_service:
-            ctg_power_multi_vector[index] = 0.
-        ctg_gen_pow_real = self.gen_pow_real * ctg_power_multi_vector
-        ctg_gen_pow_imag = self.gen_pow_imag * ctg_power_multi_vector
-
-        #line part
-        ctg_line_orig_volt_mag = tf.gather(self.bus_volt_mag,line_orig_bus)
-        ctg_line_dest_volt_mag = tf.gather(self.bus_volt_mag,line_dest_bus)
-        ctg_line_volt_ang_diff = tf.gather(self.bus_volt_ang,line_orig_bus) - tf.gather(self.bus_volt_ang,line_dest_bus)
-        ctg_line_cos_volt_ang_diff = tf.cos(ctg_line_volt_ang_diff)
-        ctg_line_sin_volt_ang_diff = tf.sin(ctg_line_volt_ang_diff)
-        ctg_line_orig_dest_volt_mag_prod = ctg_line_orig_volt_mag * ctg_line_dest_volt_mag
-        ctg_line_orig_volt_mag_sq = ctg_line_orig_volt_mag ** 2.0
-        ctg_line_dest_volt_mag_sq = ctg_line_dest_volt_mag ** 2.0
-        
-        #function 64
-        ctg_line_pow_orig_real = ( # line_status not needed as we have already done it on the parameter level
-            line_adm_real * ctg_line_orig_volt_mag_sq + # ** 2.0 +
-            ( - line_adm_real * ctg_line_cos_volt_ang_diff
-              - line_adm_imag * ctg_line_sin_volt_ang_diff) *
-            ctg_line_orig_dest_volt_mag_prod)
-        #function 65
-        ctg_line_pow_orig_imag = (
-            - line_adm_total_imag * ctg_line_orig_volt_mag_sq + # ** 2.0 +
-            (   line_adm_imag * ctg_line_cos_volt_ang_diff
-              - line_adm_real * ctg_line_sin_volt_ang_diff) *
-            ctg_line_orig_dest_volt_mag_prod)
-        #function 66
-        ctg_line_pow_dest_real = (
-            line_adm_real * ctg_line_dest_volt_mag_sq + # ** 2.0 +
-            ( - line_adm_real * ctg_line_cos_volt_ang_diff
-              + line_adm_imag * ctg_line_sin_volt_ang_diff) *
-            ctg_line_orig_dest_volt_mag_prod)
-        #function 67
-        ctg_line_pow_dest_imag = (
-            - line_adm_total_imag * ctg_line_dest_volt_mag_sq + # ** 2.0 +
-            (   line_adm_imag * ctg_line_cos_volt_ang_diff
-              + line_adm_real * ctg_line_sin_volt_ang_diff) *
-            ctg_line_orig_dest_volt_mag_prod)
-        #todo check gradient 
-        ctg_line_multi_vector = np.ones([num_line,1])
-        for index in ctg_lines_out[ctg_current]:
-            ctg_line_multi_vector[index] = 0.
-        ctg_line_pow_orig_real = ctg_line_pow_orig_real * ctg_line_multi_vector
-        ctg_line_pow_orig_imag = ctg_line_pow_orig_imag * ctg_line_multi_vector
-        ctg_line_pow_dest_real = ctg_line_pow_dest_real * ctg_line_multi_vector
-        ctg_line_pow_dest_imag = ctg_line_pow_dest_imag * ctg_line_multi_vector
-    
-        
-        
-        #function 78
-        ctg_line_curr_orig_mag_max_viol = tf.maximum(
-            0.0,
-            (ctg_line_pow_orig_real**2.0 + ctg_line_pow_orig_imag**2.0 + hard_constr_tol)**0.5 -
-            ctg_line_curr_mag_max * ctg_line_orig_volt_mag)
-        #function 80
-        ctg_line_curr_dest_mag_max_viol = tf.maximum(
-            0.0,
-            (ctg_line_pow_dest_real**2.0 + ctg_line_pow_dest_imag**2.0 + hard_constr_tol)**0.5 -
-            ctg_line_curr_mag_max * ctg_line_dest_volt_mag)
-    
-        
-        
-        #trnas aprt
-        ctg_xfmr_orig_volt_mag = tf.gather(self.bus_volt_mag,xfmr_orig_bus)
-        ctg_xfmr_dest_volt_mag = tf.gather(self.bus_volt_mag,xfmr_dest_bus)
-        ctg_xfmr_volt_ang_diff = tf.gather(self.bus_volt_ang,xfmr_orig_bus) - tf.gather(self.bus_volt_ang,xfmr_dest_bus) - xfmr_tap_ang
-        ctg_xfmr_cos_volt_ang_diff = tf.cos(ctg_xfmr_volt_ang_diff)
-        ctg_xfmr_sin_volt_ang_diff = tf.sin(ctg_xfmr_volt_ang_diff)
-        #xfmr_orig_dest_volt_mag_prod = xfmr_orig_volt_mag * xfmr_dest_volt_mag
-        ctg_xfmr_orig_volt_mag_sq = ctg_xfmr_orig_volt_mag ** 2.0
-        ctg_xfmr_dest_volt_mag_sq = ctg_xfmr_dest_volt_mag ** 2.0
-        #function 68
-        ctg_xfmr_pow_orig_real = (
-            (xfmr_adm_real / xfmr_tap_mag**2.0 + xfmr_adm_mag_real) * ctg_xfmr_orig_volt_mag_sq +
-            ( - xfmr_adm_real / xfmr_tap_mag * ctg_xfmr_cos_volt_ang_diff
-              - xfmr_adm_imag / xfmr_tap_mag * ctg_xfmr_sin_volt_ang_diff) *
-                ctg_xfmr_orig_volt_mag * ctg_xfmr_dest_volt_mag)
-        #function 69
-        ctg_xfmr_pow_orig_imag = (
-            - (xfmr_adm_imag / xfmr_tap_mag**2.0 + xfmr_adm_mag_imag) * ctg_xfmr_orig_volt_mag_sq +
-            (   xfmr_adm_imag / xfmr_tap_mag * ctg_xfmr_cos_volt_ang_diff
-              - xfmr_adm_real / xfmr_tap_mag * ctg_xfmr_sin_volt_ang_diff) *
-                ctg_xfmr_orig_volt_mag * ctg_xfmr_dest_volt_mag)
-        #function 70
-        ctg_xfmr_pow_dest_real = (
-            xfmr_adm_real * ctg_xfmr_dest_volt_mag_sq +
-            ( - xfmr_adm_real / xfmr_tap_mag * ctg_xfmr_cos_volt_ang_diff
-              + xfmr_adm_imag / xfmr_tap_mag * ctg_xfmr_sin_volt_ang_diff) *
-                ctg_xfmr_orig_volt_mag * ctg_xfmr_dest_volt_mag)
-        #function 71
-        ctg_xfmr_pow_dest_imag = (
-            - xfmr_adm_imag * ctg_xfmr_dest_volt_mag_sq +
-            (   xfmr_adm_imag / xfmr_tap_mag * ctg_xfmr_cos_volt_ang_diff
-              + xfmr_adm_real / xfmr_tap_mag * ctg_xfmr_sin_volt_ang_diff) *
-                ctg_xfmr_orig_volt_mag * ctg_xfmr_dest_volt_mag)
-            
-        #todo check none situation
-        ctg_xfmr_multi_vector = np.ones([num_xfmr,1])
-        for index in ctg_xfmrs_out[ctg_current]:
-            ctg_xfmr_multi_vector[index] = 0.
-        ctg_xfmr_pow_orig_real = ctg_xfmr_pow_orig_real * ctg_xfmr_multi_vector
-        ctg_xfmr_pow_orig_imag = ctg_xfmr_pow_orig_imag * ctg_xfmr_multi_vector
-        ctg_xfmr_pow_dest_real = ctg_xfmr_pow_dest_real * ctg_xfmr_multi_vector
-        ctg_xfmr_pow_dest_imag = ctg_xfmr_pow_dest_imag * ctg_xfmr_multi_vector  
-        
-        #function 81    
-        ctg_xfmr_pow_orig_mag_max_viol = tf.maximum(
-            0.0,
-            (ctg_xfmr_pow_orig_real**2.0 + ctg_xfmr_pow_orig_imag**2.0 + hard_constr_tol)**0.5 -
-            ctg_xfmr_pow_mag_max)
-        #function 83
-        ctg_xfmr_pow_dest_mag_max_viol = tf.maximum(
-            0.0,
-            (ctg_xfmr_pow_dest_real**2.0 + ctg_xfmr_pow_dest_imag**2.0 + hard_constr_tol)**0.5 -
-            ctg_xfmr_pow_mag_max)
-    
-               
-        #power part
-        ctg_bus_load_pow_real = bus_load_const_pow_real
-        ctg_bus_load_pow_imag = bus_load_const_pow_imag
-        #function 72 bFS v^2
-        ctg_bus_fxsh_pow_real = bus_fxsh_adm_real * (self.bus_volt_mag ** 2.0)
-        #function 75 bFS v^2
-        ctg_bus_fxsh_pow_imag = - bus_fxsh_adm_imag * (self.bus_volt_mag ** 2.0)
-        #function 75 bCS v^2
-        ctg_bus_swsh_pow_imag = -self.bus_swsh_adm_imag * self.bus_volt_mag**2.0
-        
-        
-        #function 72,75
-        ctg_bus_pow_balance_real_viol = tf.abs(
-            tf.matmul(tf.constant(bus_gen_matrix),ctg_gen_pow_real) -
-            ctg_bus_load_pow_real -
-            ctg_bus_fxsh_pow_real -
-            tf.matmul(tf.constant(bus_line_orig_matrix),ctg_line_pow_orig_real) -
-            tf.matmul(tf.constant(bus_line_dest_matrix),ctg_line_pow_dest_real) -
-            tf.matmul(tf.constant(bus_xfmr_orig_matrix),ctg_xfmr_pow_orig_real) -
-            tf.matmul(tf.constant(bus_xfmr_dest_matrix),ctg_xfmr_pow_dest_real))
-        ctg_bus_pow_balance_imag_viol = tf.abs(
-            tf.matmul(tf.constant(bus_gen_matrix),ctg_gen_pow_imag) -
-            ctg_bus_load_pow_imag -
-            ctg_bus_fxsh_pow_imag -
-            ctg_bus_swsh_pow_imag -
-            tf.matmul(tf.constant(bus_line_orig_matrix),ctg_line_pow_orig_imag) -
-            tf.matmul(tf.constant(bus_line_dest_matrix),ctg_line_pow_dest_imag) -
-            tf.matmul(tf.constant(bus_xfmr_orig_matrix),ctg_xfmr_pow_orig_imag) -
-            tf.matmul(tf.constant(bus_xfmr_dest_matrix),ctg_xfmr_pow_dest_imag))
-        
-        
-        #function 6-19
-        ctg_penalty_now =  (
-                tf.reduce_sum(
-                    eval_piecewise_linear_penalty(
-                        tf.maximum(
-                            ctg_line_curr_orig_mag_max_viol,
-                            ctg_line_curr_dest_mag_max_viol),
-                        penalty_block_pow_abs_max,
-                        penalty_block_pow_abs_coeff)) +
-                tf.reduce_sum(
-                    eval_piecewise_linear_penalty(
-                        tf.maximum(
-                            ctg_xfmr_pow_orig_mag_max_viol,
-                            ctg_xfmr_pow_dest_mag_max_viol),
-                        penalty_block_pow_abs_max,
-                        penalty_block_pow_abs_coeff)) +
-                tf.reduce_sum(
-                    eval_piecewise_linear_penalty(
-                        ctg_bus_pow_balance_real_viol,
-                        penalty_block_pow_real_max,
-                        penalty_block_pow_real_coeff)) +
-                tf.reduce_sum(
-                    eval_piecewise_linear_penalty(
-                        ctg_bus_pow_balance_imag_viol,
-                        penalty_block_pow_imag_max,
-                        penalty_block_pow_imag_coeff)))
-                
-        ctg_penalty = ctg_penalty + ctg_penalty_now
-    
-    
-    #function 1
-    penalty = base_case_penalty_weight * base_penalty + (1-base_case_penalty_weight)/max(1.0, float(num_ctg)) * ctg_penalty 
     #todo need add other penalty
-    self.test = penalty 
-    self.obj = cost + penalty
-    
-    #obj_cons
-    con1 = tf.reduce_sum(tf.maximum(0.,self.bus_volt_mag - bus_volt_mag_max))  
-    con2 = tf.reduce_sum(tf.maximum(0.,-self.bus_volt_mag + bus_volt_mag_min))
-    con3 = tf.reduce_sum(tf.maximum(0.,self.bus_swsh_adm_imag - bus_swsh_adm_imag_max))
-    con4 = tf.reduce_sum(tf.maximum(0.,-self.bus_swsh_adm_imag + bus_swsh_adm_imag_min))
-    con5 = tf.reduce_sum(tf.maximum(0.,self.gen_pow_real - gen_pow_real_max))
-    con6 = tf.reduce_sum(tf.maximum(0.,-self.gen_pow_real + gen_pow_real_min))
-    con7 = tf.reduce_sum(tf.maximum(0.,self.gen_pow_imag - gen_pow_imag_max))
-    con8 = tf.reduce_sum(tf.maximum(0.,-self.gen_pow_imag + gen_pow_imag_min))
-    self.obj_cons = con1 + con2 + con3 + con4 + con5 + con6 + con7 + con8
-    
-    #sig_cons
-    self.val = (tf.reduce_sum(line_curr_orig_mag_max_viol) + tf.reduce_sum(line_curr_dest_mag_max_viol)
-                    + tf.reduce_sum(xfmr_pow_orig_mag_max_viol) + tf.reduce_sum(xfmr_pow_dest_mag_max_viol)
-                    + tf.reduce_sum(bus_pow_balance_real_viol) + tf.reduce_sum(bus_pow_balance_imag_viol))
 
-    
-    
-    return self.obj + 100000000000 * base_mva * (tf.log(self.obj_cons) + tf.log(self.val))
+    #100* num_bus * 20
+    #self.test = 
 
-
-
+    return self.obj_ + self.cons_
 
 
   @property
   def constraints(self):
 
-    # The constraint is (recall >= self._recall_lower_bound), which we convert
-    # to (self._recall_lower_bound - recall <= 0) because
-    # ConstrainedMinimizationProblems must always provide their constraints in
-    # the form (tensor <= 0).    
-    # The result of this function should be a tensor, with each element being
-    # a quantity that is constrained to be nonpositive. We only have one
-    # constraint, so we return a one-element tensor.
-    
-    constraint_1 = self.bus_volt_mag - bus_volt_mag_max    
-    constraint_2 = -self.bus_volt_mag + bus_volt_mag_min
-    constraint_3 = self.bus_swsh_adm_imag - bus_swsh_adm_imag_max
-    constraint_4 = -self.bus_swsh_adm_imag + bus_swsh_adm_imag_min
-    constraint_5 = self.gen_pow_real - gen_pow_real_max
-    constraint_6 = -self.gen_pow_real + gen_pow_real_min
-    constraint_7 = self.gen_pow_imag - gen_pow_imag_max
-    constraint_8 = -self.gen_pow_imag + gen_pow_imag_min
-    constraints = tf.concat([constraint_1,constraint_2,constraint_3,constraint_4,constraint_5,constraint_6,constraint_7,constraint_8], axis = 0)    
-    
-    return constraints
-
+    return self.cons_
 
 
   @property
   def proxy_constraints(self):
-    # Use 1 - hinge since we're SUBTRACTING recall in the constraint function,
-    # and we want the proxy constraint function to be convex.
-    #true_positives = self._labels * tf.minimum(1.0, self._predictions)
-    #true_positive_count = tf.reduce_sum(true_positives)
-    #recall = true_positive_count / self._positive_count
-    # Please see the corresponding comment in the constraints property.
-    constraint_1 = self.bus_volt_mag - bus_volt_mag_max    
-    constraint_2 = -self.bus_volt_mag + bus_volt_mag_min
-    constraint_3 = self.bus_swsh_adm_imag - bus_swsh_adm_imag_max
-    constraint_4 = -self.bus_swsh_adm_imag + bus_swsh_adm_imag_min
-    constraint_5 = self.gen_pow_real - gen_pow_real_max
-    constraint_6 = -self.gen_pow_real + gen_pow_real_min
-    constraint_7 = self.gen_pow_imag - gen_pow_imag_max
-    constraint_8 = -self.gen_pow_imag + gen_pow_imag_min
-    constraints = tf.concat([constraint_1,constraint_2,constraint_3,constraint_4,constraint_5,constraint_6,constraint_7,constraint_8], axis = 0)    
+
+    return self.cons_
     
-    return constraints
 
 
 
 
 #main start
-problem = MyProblem()
-#itertime = 20000
-#config = tf.ConfigProto()
-#config.gpu_options.allow_growth = True
-#with tf.Session(config = config) as session:
+problem = MyProblem(obj, obj_cons, val)
+itertime = 10000
+print('now')
 with tf.Session() as session:
     '''
     https://git.codingcafe.org/Mirrors/tensorflow/tensorflow/commit/ff15c81e2b92ef8fb47bb15790cffd18377a4ef2?expanded=1
@@ -913,44 +824,34 @@ with tf.Session() as session:
     AdditiveSwapRegretOptimizer
     MultiplicativeSwapRegretOptimizer
     '''
+    #initial
+    nowtmie1 = time.time()
+    print('initial optimizer')
     optimizer = tfco.AdditiveExternalRegretOptimizer(
             optimizer=tf.train.AdagradOptimizer(learning_rate = 0.01))
-    
-    train_op = optimizer.minimize(problem)
-    
+    nowtmie2 = time.time()
+    print(nowtmie2-nowtmie1)    
+    print('initial train')
+    train_op = optimizer.minimize(problem)#
+    nowtmie3 = time.time()
+    print(nowtmie3-nowtmie2) 
+    print('initial variables')
     session.run(tf.global_variables_initializer())
-    
+    nowtmie4 = time.time()
+    print(nowtmie4-nowtmie3) 
+    print('start training')
     # 2 methods 1st:iter time ;  2nd:runing time
     while True:
-    #for i in range(itertime):
+
         session.run(train_op)
-        '''
-        if i % 5000 == 0:
-            print(i)
-            print('volt_mag ')
-            print(session.run(tf.transpose(problem.bus_volt_mag)))
-            print('volt_ang ')
-            print(session.run(tf.transpose(problem.bus_volt_ang)))
-            print('gen_real ')
-            print(session.run(tf.transpose(problem.gen_pow_real)))
-            print('gen_img ')
-            print(session.run(tf.transpose(problem.gen_pow_imag)))
-            print('swsh ')
-            print(session.run(tf.transpose(problem.bus_swsh_adm_imag)))
-            print('base_pen')
-            print(session.run(problem.test))
-            print('obj')
-            print(session.run(problem.obj))
-        '''
-        if time.time() - start_time > 600 - 30 : #10min #change to str write
-        #if i == itertime-1:
             
-            #write sol1
-            volt_mag = list(session.run(tf.transpose(problem.bus_volt_mag))[0])
-            volt_ang = list(session.run(tf.transpose(problem.bus_volt_ang))[0] / (math.pi/180))
-            gen_real = list(session.run(tf.transpose(problem.gen_pow_real))[0] * base_mva)
-            gen_img = list(session.run(tf.transpose(problem.gen_pow_imag))[0] * base_mva)
-            swsh = list(session.run(tf.transpose(problem.bus_swsh_adm_imag))[0] * base_mva)
+        if time.time() - start_time > 600 - 30 : #5min #change to str write
+
+            volt_mag = list(session.run(tf.transpose(bus_volt_mag))[0])
+            volt_ang = list(session.run(tf.transpose(bus_volt_ang))[0] / (math.pi/180))
+            gen_real = list(session.run(tf.transpose(gen_pow_real))[0] * base_mva)
+            gen_img = list(session.run(tf.transpose(gen_pow_imag))[0] * base_mva)
+            swsh = list(session.run(tf.transpose(bus_swsh_adm_imag))[0] * base_mva)
             
             sol1_content = ''            
             sol1_content += '--bus section\n'
@@ -974,8 +875,6 @@ with tf.Session() as session:
             file_w.close()
             
             break
-            
-
 
         
 
