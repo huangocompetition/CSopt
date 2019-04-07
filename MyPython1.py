@@ -7,17 +7,18 @@ Step 1: read para from data
 Step 2: build function
 Step 3: solve by tensorflow
 """
+import time
+start_time = time.time()
 
 import numpy as np
 from scipy import sparse as sp
 import math
 import tensorflow as tf
-import time
 import argparse
 import data
 import sys,os
 
-start_time = time.time()
+
 
 tfco = tf.contrib.constrained_optimization
 
