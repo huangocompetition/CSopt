@@ -851,7 +851,7 @@ with tf.Session() as session:
             print('iter:'+str(i))
         i += 1
         if time.time() - start_time > 600 - 30 : #5min #change to str write
-
+            print('iter:'+str(i))
             volt_mag = list(session.run(tf.transpose(bus_volt_mag))[0])
             volt_ang = list(session.run(tf.transpose(bus_volt_ang))[0] / (math.pi/180))
             gen_real = list(session.run(tf.transpose(gen_pow_real))[0] * base_mva)
