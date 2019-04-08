@@ -786,7 +786,7 @@ class MyProblem(tfco.ConstrainedMinimizationProblem):
     
     '''
     self.obj_ = obj
-    self.cons_ = tf.constant(10000000 * base_mva) * (obj_cons + tf.log(val))
+    self.cons_ = tf.constant(10000000 * base_mva) * (obj_cons + val)
     self.test = tf.Variable(0.)
      
 
@@ -843,10 +843,13 @@ with tf.Session() as session:
     print(nowtmie4-nowtmie3) 
     print('start training')
     # 2 methods 1st:iter time ;  2nd:runing time
+    i = 1
     while True:
 
         session.run(train_op)
-            
+        if i % 5000 == 0:
+            print('iter:'+str(i))
+        i += 1
         if time.time() - start_time > 600 - 30 : #5min #change to str write
 
             volt_mag = list(session.run(tf.transpose(bus_volt_mag))[0])
