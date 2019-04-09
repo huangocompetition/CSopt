@@ -786,7 +786,7 @@ class MyProblem(tfco.ConstrainedMinimizationProblem):
     
     '''
     self.obj_ = obj
-    self.cons_ = tf.constant(100000000 * base_mva) * (obj_cons + val)
+    self.cons_ = tf.constant(100000000 * base_mva) * (tf.log(obj_cons + val))
     self.test = tf.Variable(0.)
      
 
@@ -830,7 +830,7 @@ with tf.Session() as session:
     nowtmie1 = time.time()
     print('initial optimizer')
     optimizer = tfco.AdditiveExternalRegretOptimizer(
-            optimizer=tf.train.AdagradOptimizer(learning_rate = 0.01))
+            optimizer=tf.train.AdagradOptimizer(learning_rate = 0.001))
     nowtmie2 = time.time()
     print(nowtmie2-nowtmie1)    
     print('initial train')
@@ -847,7 +847,7 @@ with tf.Session() as session:
     while True:
 
         session.run(train_op)
-        if i % 5000 == 0:
+        if i % 1000 == 0:
             print('iter:'+str(i))
         i += 1
         if time.time() - start_time > 600 - 30 : #5min #change to str write
