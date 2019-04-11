@@ -425,10 +425,14 @@ def eval_piecewise_linear_penalty(residual, penalty_block_max, penalty_block_coe
 #x. to initla good start point
 bus_volt_mag = tf.Variable(tf.ones([num_bus,1]),dtype=tf.float32)
 bus_volt_ang = tf.Variable(tf.zeros([num_bus,1]),dtype=tf.float32) * (math.pi/180)
-bus_swsh_adm_imag = tf.Variable(tf.zeros([num_bus,1]),dtype=tf.float32) #shunt susceptance
+bus_swsh_adm_imag_all = tf.Variable(tf.zeros([num_bus,1]),dtype=tf.float32) #shunt susceptance
 gen_pow_real = tf.Variable((gen_pow_real_max + gen_pow_real_min)/2,dtype=tf.float32) #generate real power pg
 gen_pow_imag = tf.Variable(tf.zeros([num_gen,1]),dtype=tf.float32) #generate imag power pg
 
+bus_swsh_adm_imag_vector = np.zeros(num_bus)
+for index in swsh_map.keys():
+    bus_swsh_adm_imag_vector[index] = 1.
+bus_swsh_adm_imag = bus_swsh_adm_imag_all * tf.constant(np.transpose([bus_swsh_adm_imag_vector]),dtype=tf.float32)
 
 
 #function 2
