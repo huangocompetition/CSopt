@@ -834,7 +834,7 @@ with tf.Session() as session:
     nowtmie1 = time.time()
     print('initial optimizer')
     optimizer = tfco.AdditiveExternalRegretOptimizer(
-            optimizer=tf.train.AdagradOptimizer(learning_rate = 0.001))
+            optimizer=tf.train.AdamOptimizer(learning_rate = 0.001))
     nowtmie2 = time.time()
     print(nowtmie2-nowtmie1)    
     print('initial train')
