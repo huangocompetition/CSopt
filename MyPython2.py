@@ -55,7 +55,31 @@ rop = os.path.normpath(rop_name)
 con = os.path.normpath(con_name)
 inl = os.path.normpath(inl_name)
 
+input_file = sol1_name
+f = open(input_file,'r')
+sol1 = f.readlines()
+f.close()
+#read V
+start_v = sol1.index('i, v, theta, b\n')
+start_g = sol1.index('i, uid, p, q\n')  
+content = sol1[start_v+1:start_g-1]
+base_v_list = []
+for line in content:
+    line_list = line.replace('\n','').split(',')
+    base_v_list.append(float(line_list[1]))
 
+#read p,q
+content = sol1[start_g+1:]
+base_p_list = []
+base_q_list = []
+for line in content:
+    line_list = line.replace('\n','').split(',')
+    base_p_list.append(float(line_list[2]))
+    base_q_list.append(float(line_list[3]))
+
+base_v_list = np.transpose(np.array([base_v_list]))  
+base_p_list = np.transpose(np.array([base_p_list]))    
+base_q_list = np.transpose(np.array([base_q_list]))
 
 #read data, using the data object in evaluation start   
 '''
@@ -422,33 +446,33 @@ def eval_piecewise_linear_penalty(residual, penalty_block_max, penalty_block_coe
 
 
 #x. to initla good start point
-bus_volt_mag = tf.Variable(tf.ones([num_bus,1]),dtype=tf.float32)
-bus_volt_ang = tf.Variable(tf.zeros([num_bus,1]),dtype=tf.float32) * (math.pi/180)
-bus_swsh_adm_imag_all = tf.Variable(tf.zeros([num_bus,1]),dtype=tf.float32) #shunt susceptance
-gen_pow_real = tf.Variable((gen_pow_real_max + gen_pow_real_min)/2,dtype=tf.float32) #generate real power pg
-gen_pow_imag = tf.Variable(tf.zeros([num_gen,1]),dtype=tf.float32) #generate imag power pg
+bus_volt_mag_all = tf.tile(tf.constant(base_v_list,dtype=tf.float32),multiples = [1,num_ctg])
+bus_volt_ang = tf.Variable(tf.zeros([num_bus,num_ctg]),dtype=tf.float32) * (math.pi/180)
+swsh_control_all = tf.Variable([num_swsh,num_ctg])
+bus_swsh_adm_imag_all = tf.Variable(tf.zeros([num_bus,num_ctg]),dtype=tf.float32) #shunt susceptance
 
-bus_swsh_adm_imag_vector = np.zeros(num_bus)
-for index in swsh_map.keys():
-    bus_swsh_adm_imag_vector[index] = 1.
-bus_swsh_adm_imag = bus_swsh_adm_imag_all * tf.constant(np.transpose([bus_swsh_adm_imag_vector]),dtype=tf.float32)
+gen_pow_real_all = tf.tile(tf.constant(base_p_list,dtype=tf.float32),multiples = [1,num_ctg])
+gen_pow_imag_all = tf.tile(tf.constant(base_q_list,dtype=tf.float32),multiples = [1,num_ctg])
+
+#obj constraint
+constant_bus_volt_mag_max = tf.constant(ctg_bus_volt_mag_max, dtype = tf.float32)
+constant_bus_volt_mag_min = tf.constant(ctg_bus_volt_mag_min, dtype = tf.float32)
+bus_volt_mag = tf.maximum(tf.minimum(bus_volt_mag_all,constant_bus_volt_mag_max),constant_bus_volt_mag_min)
+
+constant_gen_pow_real_max = tf.constant(gen_pow_real_max, dtype = tf.float32)
+constant_gen_pow_real_min = tf.constant(gen_pow_real_min, dtype = tf.float32)
+gen_pow_real = tf.maximum(tf.minimum(gen_pow_real_all,constant_gen_pow_real_max),constant_gen_pow_real_min)
+
+constant_gen_pow_imag_max = tf.constant(gen_pow_imag_max, dtype = tf.float32)
+constant_gen_pow_imag_min = tf.constant(gen_pow_imag_min, dtype = tf.float32)
+gen_pow_imag = tf.maximum(tf.minimum(gen_pow_imag_all,constant_gen_pow_imag_max),constant_gen_pow_imag_min)
+
+constant_bus_swsh_adm_imag_max = tf.constant(bus_swsh_adm_imag_max, dtype = tf.float32)
+constant_bus_swsh_adm_imag_min = tf.constant(bus_swsh_adm_imag_min, dtype = tf.float32)
+bus_swsh_adm_imag = tf.maximum(tf.minimum(bus_swsh_adm_imag_all,constant_bus_swsh_adm_imag_max),constant_bus_swsh_adm_imag_min)
 
 
-#function 2
-pl_x = np.array(gen_pl_x).astype(np.float32)
-pl_y = np.array(gen_pl_y).astype(np.float32)
 
-#suppose the slope increase and ignore the insecure situation less and larger        
-slope =  tf.constant((pl_y[...,1:] - pl_y[...,:-1]) / (pl_x[...,1:] - pl_x[...,:-1]))
-max_output = tf.constant(pl_x[...,1:] - pl_x[...,:-1])
-x_change = tf.maximum(tf.constant(np.zeros([num_gen,1]),tf.float32), tf.minimum(max_output, gen_pow_real - tf.constant(pl_x[...,:-1])))
-y_value = pl_y[...,0]
-gen_cost = tf.constant(np.sum(y_value)) + tf.reduce_sum(slope * x_change)
-       
-#if gen_status[k] == 0.0:#todo 
-    #continue
-cost = gen_cost
- 
 #line part
 constant_line_orig_bus = tf.constant(line_orig_bus)
 constant_line_dest_bus = tf.constant(line_dest_bus)
@@ -490,15 +514,6 @@ line_pow_dest_imag = (
     line_orig_dest_volt_mag_prod)
 #function 52-53
 constant_line_curr_mag_max = tf.constant(line_curr_mag_max, dtype = tf.float32)
-line_curr_orig_mag_max_viol = tf.maximum(
-    tf.constant(0.0),
-    (line_pow_orig_real**2.0 + line_pow_orig_imag**2.0 + hard_constr_tol)**0.5 -
-    constant_line_curr_mag_max * line_orig_volt_mag)
-#function 54
-line_curr_dest_mag_max_viol = tf.maximum(
-    tf.constant(0.0),
-    (line_pow_dest_real**2.0 + line_pow_dest_imag**2.0 + hard_constr_tol)**0.5 -
-    constant_line_curr_mag_max * line_dest_volt_mag)
  
 
 #trnas aprt
@@ -544,15 +559,7 @@ xfmr_pow_dest_imag = (
 
 #function 55-56    
 constant_xfmr_pow_mag_max = tf.constant(xfmr_pow_mag_max, dtype = tf.float32)
-xfmr_pow_orig_mag_max_viol = tf.maximum(
-    tf.constant(0.0),
-    (xfmr_pow_orig_real**2.0 + xfmr_pow_orig_imag**2.0 + hard_constr_tol)**0.5 -
-    constant_xfmr_pow_mag_max)
-#function 57
-xfmr_pow_dest_mag_max_viol = tf.maximum(
-    tf.constant(0.0),
-    (xfmr_pow_dest_real**2.0 + xfmr_pow_dest_imag**2.0 + hard_constr_tol)**0.5 -
-    constant_xfmr_pow_mag_max)
+
 
 #power part
 bus_load_pow_real = tf.constant(bus_load_const_pow_real, dtype = tf.float32)
@@ -566,53 +573,8 @@ bus_fxsh_pow_imag = - constant_bus_fxsh_adm_imag * (bus_volt_mag ** 2.0)
 #function 49 bCS v^2
 bus_swsh_pow_imag = -bus_swsh_adm_imag * bus_volt_mag**2.0
 
-#function 46
-bus_pow_balance_real_viol = tf.abs((
-    tf.matmul(tf.constant(bus_gen_matrix), gen_pow_real) -
-    bus_load_pow_real -
-    bus_fxsh_pow_real -
-    tf.matmul(tf.constant(bus_line_orig_matrix),line_pow_orig_real) -
-    tf.matmul(tf.constant(bus_line_dest_matrix),line_pow_dest_real) -
-    tf.matmul(tf.constant(bus_xfmr_orig_matrix),xfmr_pow_orig_real) -
-    tf.matmul(tf.constant(bus_xfmr_dest_matrix),xfmr_pow_dest_real)))
-#function 49
-bus_pow_balance_imag_viol = tf.abs((
-    tf.matmul(tf.constant(bus_gen_matrix),gen_pow_imag) -
-    bus_load_pow_imag -
-    bus_fxsh_pow_imag -
-    bus_swsh_pow_imag -
-    tf.matmul(tf.constant(bus_line_orig_matrix),line_pow_orig_imag) -
-    tf.matmul(tf.constant(bus_line_dest_matrix),line_pow_dest_imag) -
-    tf.matmul(tf.constant(bus_xfmr_orig_matrix),xfmr_pow_orig_imag) -
-    tf.matmul(tf.constant(bus_xfmr_dest_matrix),xfmr_pow_dest_imag)))
 
 
-#function 6-19
-base_penalty = (
-    tf.reduce_sum(
-        eval_piecewise_linear_penalty(
-            tf.maximum(
-                line_curr_orig_mag_max_viol,
-                line_curr_dest_mag_max_viol),
-            penalty_block_pow_abs_max,
-            penalty_block_pow_abs_coeff)) +
-    tf.reduce_sum(
-        eval_piecewise_linear_penalty(
-            tf.maximum(
-                xfmr_pow_orig_mag_max_viol,
-                xfmr_pow_dest_mag_max_viol),
-            penalty_block_pow_abs_max,
-            penalty_block_pow_abs_coeff)) +
-    tf.reduce_sum(
-        eval_piecewise_linear_penalty(
-            bus_pow_balance_real_viol,
-            penalty_block_pow_real_max,
-            penalty_block_pow_real_coeff)) +
-    tf.reduce_sum(
-        eval_piecewise_linear_penalty(
-            bus_pow_balance_imag_viol,
-            penalty_block_pow_imag_max,
-            penalty_block_pow_imag_coeff)))
 
 
 
@@ -656,9 +618,14 @@ for i in range(len(ctgs)):
         
         
         
-#ctg_gen p,q        
+#ctg_gen p,q
+ctg_delta = tf.Variable(tf.zeros([1,num_ctg]))        
 ctg_gen_pow_real = gen_pow_real * tf.constant(ctg_power_multi_matrix, dtype = tf.float32)
+ctg_gen_pow_real_delta = ctg_gen_pow_real + ctg_delta
+ctg_gen_pow_real_delta_cons = tf.maximum(tf.minimum(ctg_gen_pow_real_delta,constant_gen_pow_real_max),constant_gen_pow_real_min)
+
 ctg_gen_pow_imag = gen_pow_imag * tf.constant(ctg_power_multi_matrix, dtype = tf.float32)
+
 
 
 #line part
@@ -703,7 +670,7 @@ ctg_xfmr_pow_dest_mag_max_viol = tf.maximum(
 #power part
 #function 72,75
 ctg_bus_pow_balance_real_viol = tf.abs(
-    tf.matmul(tf.constant(bus_gen_matrix),ctg_gen_pow_real) -
+    tf.matmul(tf.constant(bus_gen_matrix),ctg_gen_pow_real_delta_cons) -
     bus_load_pow_real -
     bus_fxsh_pow_real -
     tf.matmul(tf.constant(bus_line_orig_matrix),ctg_line_pow_orig_real) -
@@ -766,18 +733,14 @@ obj_cons = con1 + con2 + con3 + con4 + con5 + con6 + con7 + con8
 
 
 #sig_cons
-val = (tf.reduce_sum(line_curr_orig_mag_max_viol) + tf.reduce_sum(line_curr_dest_mag_max_viol)
-                + tf.reduce_sum(xfmr_pow_orig_mag_max_viol) + tf.reduce_sum(xfmr_pow_dest_mag_max_viol)
-                + tf.reduce_sum(bus_pow_balance_real_viol) + tf.reduce_sum(bus_pow_balance_imag_viol))
+val = (tf.reduce_sum(ctg_line_curr_orig_mag_max_viol) + tf.reduce_sum(ctg_line_curr_dest_mag_max_viol)
+                + tf.reduce_sum(ctg_xfmr_pow_orig_mag_max_viol) + tf.reduce_sum(ctg_xfmr_pow_dest_mag_max_viol)
+                + tf.reduce_sum(ctg_bus_pow_balance_real_viol) + tf.reduce_sum(ctg_bus_pow_balance_imag_viol))
 
 
-constant_base_case_penalty_weight = tf.constant(base_case_penalty_weight)
-constant_ctg_case_penalty_weight = tf.constant(1-base_case_penalty_weight)
-constant_num_k = tf.constant(max(1.0, float(num_ctg)))
 
 #function 1
-penalty =  constant_base_case_penalty_weight * base_penalty + constant_ctg_case_penalty_weight/constant_num_k * ctg_penalty
-obj = cost + penalty
+obj = ctg_penalty / num_ctg
 print('finish graphing')
 
 #do calculation
@@ -789,7 +752,8 @@ class MyProblem(tfco.ConstrainedMinimizationProblem):
     
     '''
     self.obj_ = obj
-    self.cons_ = tf.constant(100000000 * base_mva) * (obj_cons + val)
+    #self.cons_ = tf.constant(10000000 * base_mva) * (obj_cons + val)
+    self.cons_ = tf.constant(10000000 * base_mva) * ( tf.log(obj_cons + val))
     self.test = tf.Variable(0.)
      
 
@@ -800,7 +764,7 @@ class MyProblem(tfco.ConstrainedMinimizationProblem):
     #100* num_bus * 20
     #self.test = 
 
-    return self.obj_ + self.cons_
+    return self.cons_
 
 
   @property
@@ -814,7 +778,6 @@ class MyProblem(tfco.ConstrainedMinimizationProblem):
 
     return self.cons_
     
-
 
 
 
@@ -852,35 +815,38 @@ with tf.Session() as session:
             
         if time.time() - start_time > 600 - 50 : #5min #change to str write
 
-            volt_mag = list(session.run(tf.transpose(bus_volt_mag))[0])
-            volt_ang = list(session.run(tf.transpose(bus_volt_ang))[0] / (math.pi/180))
-            gen_real = list(session.run(tf.transpose(gen_pow_real))[0] * base_mva)
-            gen_img = list(session.run(tf.transpose(gen_pow_imag))[0] * base_mva)
-            swsh = list(session.run(tf.transpose(bus_swsh_adm_imag))[0] * base_mva)
+            volt_mag = np.array(session.run(tf.transpose(bus_volt_mag)))
+            volt_ang = np.array(session.run(tf.transpose(bus_volt_ang))) / (math.pi/180)
+            gen_real = np.array(session.run(tf.transpose(ctg_gen_pow_real))) * base_mva
+            gen_img = np.array(session.run(tf.transpose(ctg_gen_pow_imag))) * base_mva
+            swsh = np.array(session.run(tf.transpose(bus_swsh_adm_imag))) * base_mva
+            delta = np.array(session.run(tf.transpose(ctg_delta))) * base_mva
 
             sol2_content = ''  
             for i in ctg_map.keys():
                 
+            for (key,value) in ctg_map.items():
+                
                 sol2_content += '--contingency\n'
                 sol2_content += 'label\n'
-                sol2_content += i + '\n'
+                sol2_content += key + '\n'
                 sol2_content += '--bus section\n'
                 sol2_content += 'i, v, theta, b\n'
-                part1 = list(zip(volt_mag, volt_ang, swsh))
+                part1 = list(zip(volt_mag[value], volt_ang[value], swsh[value]))
                 for i in range(len(part1)):
                     sol2_content += str(i+1)+','
                     sol2_content += str(part1[i])+'\n'
                 
                 sol2_content += '--generator section\n'
                 sol2_content += 'i, uid, p, q\n'
-                part2 = list(zip(gen_real,gen_img))
+                part2 = list(zip(gen_real[value],gen_img[value]))
                 for i in range(len(part2)):
                     sol2_content += '{},'.format(gen_key[i])
                     sol2_content += str(part2[i])+'\n'
                 
                 sol2_content += '--delta section\n'
                 sol2_content += 'delta\n'#todo
-                sol2_content += '0.0'
+                sol2_content += str(delta[value][0])+'\n'
 
             sol2_content = sol2_content.replace('(','').replace(')','')#todo
             file_w = open('solution2.txt','w')
