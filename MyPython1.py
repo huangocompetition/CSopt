@@ -423,16 +423,29 @@ def eval_piecewise_linear_penalty(residual, penalty_block_max, penalty_block_coe
 
 
 #x. to initla good start point
-bus_volt_mag = tf.Variable(tf.ones([num_bus,1]),dtype=tf.float32)
+bus_volt_mag_all = tf.Variable(tf.ones([num_bus,1]),dtype=tf.float32)
 bus_volt_ang = tf.Variable(tf.zeros([num_bus,1]),dtype=tf.float32) * (math.pi/180)
 bus_swsh_adm_imag_all = tf.Variable(tf.zeros([num_bus,1]),dtype=tf.float32) #shunt susceptance
-gen_pow_real = tf.Variable((gen_pow_real_max + gen_pow_real_min)/2,dtype=tf.float32) #generate real power pg
-gen_pow_imag = tf.Variable(tf.zeros([num_gen,1]),dtype=tf.float32) #generate imag power pg
+gen_pow_real_all = tf.Variable((gen_pow_real_max + gen_pow_real_min)/2,dtype=tf.float32) #generate real power pg
+gen_pow_imag_all = tf.Variable(tf.zeros([num_gen,1]),dtype=tf.float32) #generate imag power pg
 
-bus_swsh_adm_imag_vector = np.zeros(num_bus)
-for index in swsh_map.keys():
-    bus_swsh_adm_imag_vector[index] = 1.
-bus_swsh_adm_imag = bus_swsh_adm_imag_all * tf.constant(np.transpose([bus_swsh_adm_imag_vector]),dtype=tf.float32)
+#obj constraint
+constant_bus_volt_mag_max = tf.constant(bus_volt_mag_max, dtype = tf.float32)
+constant_bus_volt_mag_min = tf.constant(bus_volt_mag_min, dtype = tf.float32)
+bus_volt_mag = tf.maximum(tf.minimum(bus_volt_mag_all,constant_bus_volt_mag_max),constant_bus_volt_mag_min)
+
+constant_gen_pow_real_max = tf.constant(gen_pow_real_max, dtype = tf.float32)
+constant_gen_pow_real_min = tf.constant(gen_pow_real_min, dtype = tf.float32)
+gen_pow_real = tf.maximum(tf.minimum(gen_pow_real_all,constant_gen_pow_real_max),constant_gen_pow_real_min)
+
+constant_gen_pow_imag_max = tf.constant(gen_pow_imag_max, dtype = tf.float32)
+constant_gen_pow_imag_min = tf.constant(gen_pow_imag_min, dtype = tf.float32)
+gen_pow_imag = tf.maximum(tf.minimum(gen_pow_imag_all,constant_gen_pow_imag_max),constant_gen_pow_imag_min)
+
+constant_bus_swsh_adm_imag_max = tf.constant(bus_swsh_adm_imag_max, dtype = tf.float32)
+constant_bus_swsh_adm_imag_min = tf.constant(bus_swsh_adm_imag_min, dtype = tf.float32)
+bus_swsh_adm_imag = tf.maximum(tf.minimum(bus_swsh_adm_imag_all,constant_bus_swsh_adm_imag_max),constant_bus_swsh_adm_imag_min)
+
 
 
 #function 2
