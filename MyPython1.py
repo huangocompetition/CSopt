@@ -867,7 +867,7 @@ with tf.Session() as session:
         if i % 1000 == 0:
             print('iter:'+str(i))
         i += 1
-        if time.time() - start_time > time_limit - 30 : #30 sec to write
+        if time.time() - start_time > int(time_limit) - 30 : #30 sec to write
             print('iter:'+str(i))
             volt_mag = list(session.run(tf.transpose(bus_volt_mag))[0])
             volt_ang = list(session.run(tf.transpose(bus_volt_ang))[0] / (math.pi/180))
