@@ -821,9 +821,7 @@ with tf.Session() as session:
             swsh = np.array(session.run(tf.transpose(bus_swsh_adm_imag))) * base_mva
             delta = np.array(session.run(tf.transpose(ctg_delta))) * base_mva
 
-            sol2_content = ''  
-            for i in ctg_map.keys():
-                
+            sol2_content = '' 
             for (key,value) in ctg_map.items():
                 
                 sol2_content += '--contingency\n'
