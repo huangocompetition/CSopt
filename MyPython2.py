@@ -764,7 +764,7 @@ class MyProblem(tfco.ConstrainedMinimizationProblem):
     #100* num_bus * 20
     #self.test = 
 
-    return self.cons_
+    return self.obj_
 
 
   @property
