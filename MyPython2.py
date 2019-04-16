@@ -813,7 +813,7 @@ with tf.Session() as session:
 
         session.run(train_op)
             
-        if time.time() - start_time > int(time_limit) - num_ctg * 1 : #num_ctg * 1.5 1.5 sec to write 
+        if time.time() - start_time > 600 - num_ctg * 1 : #num_ctg * 1.5 1.5 sec to write 
             volt_mag = np.array(session.run(tf.transpose(bus_volt_mag)))
             volt_ang = np.array(session.run(tf.transpose(bus_volt_ang))) / (math.pi/180)
             gen_real = np.array(session.run(tf.transpose(ctg_gen_pow_real))) * base_mva
